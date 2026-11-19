@@ -11,6 +11,7 @@ window.__PLAYER__ = sceneContext.player;
 
 // Debug overlay elements
 const debugFps = document.getElementById('debug-fps');
+const debugModel = document.getElementById('debug-model');
 const debugGrounded = document.getElementById('debug-grounded');
 const debugSpeed = document.getElementById('debug-speed');
 
@@ -42,6 +43,9 @@ function animate() {
 
     if (debugFps) {
       debugFps.textContent = `${currentFps}`;
+    }
+    if (debugModel && sceneContext.player) {
+      debugModel.textContent = sceneContext.player.getModelName();
     }
   }
 
