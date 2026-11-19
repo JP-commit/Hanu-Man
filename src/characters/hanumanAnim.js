@@ -12,7 +12,7 @@
 // Covers idle (breathing, tail sway, blinking), run, jump, fall and a landing squash.
 // Rotation convention: a hanging limb swings FORWARD (+Z) with a NEGATIVE rotation.x.
 
-import { TAIL_REST } from './hanuman.js';
+import { TAIL_REST, HIPS_Y, SPINE_Y } from './hanuman.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -91,10 +91,10 @@ export function createHanumanAnimator(rig) {
     // ---- torso, head, hips
     spine.rotation.x = 0.22 * run + a * lerp(0.1, 0.3, w) + 0.15 * st.land;
     spine.rotation.y = s1 * 0.2 * run;
-    spine.position.y = 0.04 + breath * 0.004;
+    spine.position.y = SPINE_Y + breath * 0.004;
     head.rotation.x = -spine.rotation.x * 0.6;
     head.rotation.y = -spine.rotation.y * 0.7 + Math.sin(st.t * 0.7) * 0.05 * (1 - run);
-    hips.position.y = 0.5 + Math.abs(c1) * 0.045 * run - 0.09 * st.land;
+    hips.position.y = HIPS_Y + Math.abs(c1) * 0.045 * run - 0.09 * st.land;
     hips.rotation.z = s1 * 0.04 * run;
 
     // ---- tail: streams out when running, lifts when jumping, always swaying a little

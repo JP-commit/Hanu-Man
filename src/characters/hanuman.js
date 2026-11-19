@@ -1,79 +1,102 @@
 // src/characters/hanuman.js
-// Child/adult Hanuman built from Three.js primitives, cel-shaded with an inverted-hull outline.
-// Reference: boy Hanuman with topknot, tilak, orange sash, blue-grey waist cloth, cream shorts,
-// gold armlets/anklets, bead necklace, barefoot, long curled tail.
+// Child/adult Hanuman built from Three.js primitives, faithfully matching the boy-Hanuman reference sheet:
+// - Young, childlike vanara face with large expressive eyes, dark pupils, and bright dual highlights
+// - Soft, natural peachy-cream vanara muzzle with vanara button nose and cheerful smile
+// - Sacred white & red Vaishnava U-tilak on forehead
+// - Rich chocolate-brown hair with high sculpted topknot (shikha) bound by a gold band, and framed fringe locks
+// - Bare golden-tan chest with sacred rudraksha bead necklace
+// - Saffron-orange fabric sash (uttariya) draped over the left shoulder across the chest with hip knot
+// - Puffy cream dhoti shorts (kachha) with golden embroidered hem borders
+// - Slate-blue waist wrap with large circular golden medallion buckle and hanging pleated loincloth flap
+// - Traditional golden ornaments: bicep armlets (keyura), wrist bracelets (kankana), and anklets (nupura)
+// - Bare feet with defined toes and agile athletic limbs
+// - Long, majestic vanara tail arching proudly behind with a dark chocolate fluffy tuft
 //
-// The model faces +Z, stands with its feet at y = 0 and is ~1.5 units tall (child, scale = 1).
-// "side" +1 means the +X side of the body, -1 the -X side.
+// Shading is handled by a self-contained toon shader with discrete cel bands and inverted-hull outlines.
 //
-// Usage:
-//   const hanuman = makeHanuman({ variant: 'child', scale: 1 });
-//   scene.add(hanuman.root);
-//   // animation lives in hanumanAnim.js
+// The model faces +Z, stands with its feet at y = 0 and is ~1.6 units tall (child, scale = 1).
+// "side" +1 means the +X side of the body (character's left), -1 the -X side (character's right).
 
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-// ---------------------------------------------------------------- palette
+// ---------------------------------------------------------------- palette (sRGB, shown as-is)
 export const COLORS = {
-  skin: 0xf0b98c,
-  skinDark: 0xd99a6c,
-  blush: 0xef9a82,
-  hair: 0x5a2e1e,
-  tail: 0x8a4a2c,
-  tailTip: 0x6e3a22,
-  sash: 0xe8683a,
-  cloth: 0x5e6878,
-  cream: 0xf3e2c4,
-  gold: 0xe3a93b,
-  goldDark: 0xb27a1e,
-  beads: 0x7a4425,
-  outline: 0x2a1a12,
-  white: 0xfff4e8,
-  red: 0xd8402e,
-  iris: 0x4a2a18,
-  mouth: 0x7a3028,
+  skin: 0xedb088,        // warm golden-peach vanara body skin
+  skinMuzzle: 0xfbd8bd,  // soft creamy-peach for vanara muzzle/snout
+  skinDark: 0xd4936a,    // inner ear contour & nostril shadow
+  blush: 0xee927b,       // soft rosy cheek blush
+  hair: 0x4e2517,        // deep rich chocolate brown for hair, eyebrows & topknot
+  sash: 0xe6592a,        // vibrant saffron-vermilion orange
+  cloth: 0x4e5e73,       // slate-blue / charcoal waist cloth
+  clothDark: 0x3d4b5d,   // deeper slate-blue for belt wrap
+  cream: 0xf4e5c8,       // warm ivory/cream for puffy dhoti shorts
+  gold: 0xe5ac38,        // radiant temple gold for jewellery and trims
+  goldDark: 0xb37e22,    // engraved inner gold detail
+  beads: 0x6e371b,       // sacred rudraksha beads
+  outline: 0x362117,     // warm dark brown comic inking outline
+  white: 0xfff7ee,       // eye sclera & tilak white
+  red: 0xd62828,         // sacred vermilion red tilak center
+  iris: 0x5a301a,        // warm honey-chestnut iris
+  pupil: 0x180c07,       // deep dark pupil
+  mouth: 0x8a3832,       // cute cheerful smile
+  tailBase: 0xa8653c,    // golden brown base of tail
+  tailMid: 0x7e4024,     // mid tail
+  tailTip: 0x4e2517,     // fluffy chocolate brown tail tuft
 };
 const C = COLORS;
 
-// Where the tail starts (radians). Segment 0 gets `base`, the rest get `curl` each.
-export const TAIL_REST = { base: -1.45, curl: 0.28 };
+// Rest pose constants shared with hanumanAnim.js
+export const HIPS_Y = 0.6;
+export const SPINE_Y = 0.04;
+export const TAIL_REST = { base: -2.0, curl: 0.28 };
+const TAIL_SEGMENTS = 10;
+const TAIL_STEP = 0.088;
 
-// ---------------------------------------------------------------- toon + outline
-let _gradient = null;
-function gradientMap() {
-  if (_gradient) return _gradient;
-  // 3 flat bands: shadow, mid, light
-  const data = new Uint8Array([
-    95, 95, 95, 255,
-    180, 180, 180, 255,
-    255, 255, 255, 255,
-  ]);
-  _gradient = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat);
-  _gradient.minFilter = THREE.NearestFilter;
-  _gradient.magFilter = THREE.NearestFilter;
-  _gradient.generateMipmaps = false;
-  _gradient.needsUpdate = true;
-  return _gradient;
+// ---------------------------------------------------------------- toon shader (light independent)
+export const LIGHT_DIR = new THREE.Vector3(0.45, 0.8, 0.55).normalize();
+const lightUniform = { value: LIGHT_DIR };
+
+function rawColor(hex) {
+  const c = new THREE.Color();
+  c.setHex(hex, THREE.LinearSRGBColorSpace);
+  return c;
 }
 
 const toonCache = new Map();
-function toon(color) {
-  let m = toonCache.get(color);
+function toon(hex) {
+  let m = toonCache.get(hex);
   if (!m) {
-    m = new THREE.MeshToonMaterial({ color, gradientMap: gradientMap() });
-    toonCache.set(color, m);
+    m = new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: rawColor(hex) }, uLightDir: lightUniform },
+      vertexShader: /* glsl */ `
+        varying vec3 vN;
+        void main() {
+          mat3 nm = transpose(inverse(mat3(modelMatrix)));
+          vN = normalize(nm * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uColor;
+        uniform vec3 uLightDir;
+        varying vec3 vN;
+        void main() {
+          float d = dot(normalize(vN), normalize(uLightDir));
+          vec3 c = uColor;
+          if (d < -0.1)      c *= vec3(0.74, 0.66, 0.76);   // soft cool shadow band
+          else if (d < 0.35) c *= vec3(0.88, 0.82, 0.90);   // mid band
+          gl_FragColor = vec4(c, 1.0);
+        }`,
+    });
+    toonCache.set(hex, m);
   }
   return m;
 }
 
 // Thin dark shell, pushed out along smooth normals, drawn on back faces only.
-export const OUTLINE_THICKNESS = 0.011;
+export const OUTLINE_THICKNESS = 0.009;
 const OUTLINE_MATERIAL = new THREE.ShaderMaterial({
-  uniforms: {
-    uColor: { value: new THREE.Color(C.outline) },
-    uThickness: { value: OUTLINE_THICKNESS },
-  },
+  uniforms: { uColor: { value: rawColor(C.outline) }, uThickness: { value: OUTLINE_THICKNESS } },
   vertexShader: /* glsl */ `
     uniform float uThickness;
     void main() {
@@ -86,8 +109,6 @@ const OUTLINE_MATERIAL = new THREE.ShaderMaterial({
   side: THREE.BackSide,
 });
 
-// Hard-edged primitives (cylinders, capsule seams) get split normals, which would open gaps in the
-// outline. Weld the vertices and recompute smooth normals for the outline copy only.
 const outlineGeoCache = new WeakMap();
 function outlineGeometry(geo) {
   let g = outlineGeoCache.get(geo);
@@ -113,11 +134,11 @@ function make(geo, color, { outline = true, pos, rot, scale, parent } = {}) {
   if (parent) parent.add(mesh);
   return mesh;
 }
-const sphere = (r, color, o) => make(new THREE.SphereGeometry(r, 20, 14), color, o);
+
+const sphere = (r, color, o) => make(new THREE.SphereGeometry(r, 22, 16), color, o);
 const capsule = (r, len, color, o) => make(new THREE.CapsuleGeometry(r, len, 6, 14), color, o);
-const torus = (R, tube, color, o) => make(new THREE.TorusGeometry(R, tube, 8, 24), color, o);
-const cylinder = (rt, rb, h, color, o) => make(new THREE.CylinderGeometry(rt, rb, h, 20), color, o);
-const cone = (r, h, color, o) => make(new THREE.ConeGeometry(r, h, 8), color, o);
+const torus = (R, tube, color, o) => make(new THREE.TorusGeometry(R, tube, 8, 28), color, o);
+const cylinder = (rt, rb, h, color, o) => make(new THREE.CylinderGeometry(rt, rb, h, 22), color, o);
 
 function grp(parent, x = 0, y = 0, z = 0) {
   const g = new THREE.Group();
@@ -137,164 +158,288 @@ export function makeHanuman({ variant = 'child', scale = 1 } = {}) {
 
   const root = grp(null);
   root.name = 'Hanuman';
-  const body = grp(root);                 // variant scaling lives here, squash/stretch lives on root
+  const body = grp(root);
   if (adult) body.scale.setScalar(1.35);
 
-  const hips = grp(body, 0, 0.5, 0);
+  const hips = grp(body, 0, HIPS_Y, 0);
 
-  // ---- legs: baggy cream shorts, bare shins, gold anklets, bare feet
+  // ---- legs: puffy cream dhoti shorts with gold embroidered hem, gold anklets, bare feet
   const legs = [1, -1].map((side) => {
-    const hip = grp(hips, side * 0.085, 0, 0);
-    capsule(0.085, 0.04, C.cream, { parent: hip, pos: [0, -0.1, 0] });
-    torus(0.083, 0.011, C.gold, { parent: hip, pos: [0, -0.195, 0], rot: [Math.PI / 2, 0, 0], outline: false });
+    const hip = grp(hips, side * 0.082, 0, 0);
 
-    const knee = grp(hip, 0, -0.2, 0);
-    capsule(0.048, 0.1, C.skin, { parent: knee, pos: [0, -0.1, 0] });
+    // 1. Puffy gathered cream dhoti shorts (kachha)
+    sphere(0.122, C.cream, { parent: hip, pos: [0, -0.09, 0], scale: [1.18, 1.25, 1.14] });
+    capsule(0.084, 0.11, C.cream, { parent: hip, pos: [0, -0.125, 0], scale: [1.10, 1.0, 1.06] });
+    // Golden embroidered trim around lower thigh / knee cuff
+    torus(0.088, 0.012, C.gold, { parent: hip, pos: [0, -0.218, 0], rot: [Math.PI / 2, 0, 0], outline: false });
 
-    const ankle = grp(knee, 0, -0.2, 0);
-    torus(0.05, 0.012, C.gold, { parent: ankle, pos: [0, -0.02, 0], rot: [Math.PI / 2, 0, 0], outline: false });
-    sphere(0.06, C.skin, { parent: ankle, pos: [0, -0.06, 0.035], scale: [0.9, 0.55, 1.5] });
+    // 2. Knee & athletic boy calf
+    const knee = grp(hip, 0, -0.24, 0);
+    capsule(0.044, 0.14, C.skin, { parent: knee, pos: [0, -0.115, 0] });
+
+    // 3. Ankle & barefoot
+    const ankle = grp(knee, 0, -0.24, 0);
+    // Gold anklet (nupura)
+    torus(0.046, 0.011, C.gold, { parent: ankle, pos: [0, -0.02, 0], rot: [Math.PI / 2, 0, 0], outline: false });
+    // Bare foot heel & arch
+    sphere(0.052, C.skin, { parent: ankle, pos: [0, -0.082, 0.028], scale: [0.86, 0.58, 1.48] });
+
+    // 5 cute stylized toes across the front
+    const toeX = [-0.028, -0.014, 0.0, 0.014, 0.028];
+    const toeR = [0.015, 0.014, 0.013, 0.012, 0.011];
+    toeX.forEach((tx, idx) => {
+      sphere(toeR[idx], C.skin, {
+        parent: ankle,
+        pos: [tx, -0.095, 0.095],
+        scale: [1, 0.75, 1.2],
+        outline: false,
+      });
+    });
 
     return { hip, knee, ankle, side };
   });
 
-  // ---- torso
-  const spine = grp(hips, 0, 0.04, 0);
-  if (adult) spine.scale.set(1.15, 1, 1.05);
+  // Central crotch volume of dhoti shorts
+  sphere(0.138, C.cream, { parent: hips, pos: [0, -0.04, 0], scale: [1.06, 0.85, 0.95] });
 
-  capsule(0.115, 0.14, C.skin, { parent: spine, pos: [0, 0.15, 0], scale: [1, 1, 0.78] });
+  // ---- torso: compact athletic tan chest
+  const spine = grp(hips, 0, SPINE_Y, 0);
+  if (adult) spine.scale.set(1.22, 1, 1.15);
 
-  // blue-grey waist cloth, brown belt, gold medallion, front flap
-  cylinder(0.15, 0.175, 0.13, C.cloth, { parent: spine, pos: [0, 0.02, 0] });
-  torus(0.157, 0.013, C.beads, { parent: spine, pos: [0, 0.075, 0], rot: [Math.PI / 2, 0, 0] });
-  capsule(0.05, 0.09, C.cloth, { parent: spine, pos: [0.025, -0.06, 0.165], scale: [1.3, 1, 0.25] });
-  cylinder(0.04, 0.04, 0.016, C.gold, { parent: spine, pos: [0, 0.075, 0.176], rot: [Math.PI / 2, 0, 0] });
-  cylinder(0.022, 0.022, 0.02, C.goldDark, { parent: spine, pos: [0, 0.075, 0.18], rot: [Math.PI / 2, 0, 0], outline: false });
+  capsule(0.106, 0.13, C.skin, { parent: spine, pos: [0, 0.135, 0], scale: [1.02, 1, 0.84] });
 
-  // orange sash: over the +X shoulder, diagonally down to the -X hip (front and back panels)
-  [0.095, -0.095].forEach((z) => {
-    capsule(0.034, 0.3, C.sash, { parent: spine, pos: [0, 0.185, z], rot: [0, 0, -0.57], scale: [1, 1, 0.4] });
-  });
-  sphere(0.062, C.sash, { parent: spine, pos: [0.12, 0.31, 0], scale: [1, 0.8, 1.1] });
+  // slate-blue waist cloth (kamarbandh)
+  cylinder(0.144, 0.168, 0.14, C.cloth, { parent: spine, pos: [0, 0.01, 0], scale: [1.02, 1.0, 0.88] });
+  torus(0.166, 0.008, C.gold, { parent: spine, pos: [0, -0.062, 0], rot: [Math.PI / 2, 0, 0], outline: false });
 
-  // bead necklace + neck
-  torus(0.115, 0.011, C.beads, { parent: spine, pos: [0, 0.31, 0.02], rot: [Math.PI / 2 + 0.4, 0, 0] });
-  cylinder(0.05, 0.055, 0.08, C.skin, { parent: spine, pos: [0, 0.345, 0] });
+  // waist sash belt
+  cylinder(0.146, 0.150, 0.042, C.clothDark, { parent: spine, pos: [0, 0.065, 0], scale: [1.01, 1.0, 0.88] });
 
-  // ---- head
-  const head = grp(spine, 0, 0.36, 0);
-  const R = 0.25, CY = 0.2, SY = 0.97, SZ = 0.96;
-  sphere(R, C.skin, { parent: head, pos: [0, CY, 0], scale: [1, SY, SZ] });
+  // Large circular golden medallion buckle at the center front
+  cylinder(0.048, 0.048, 0.016, C.gold, { parent: spine, pos: [0, 0.055, 0.152], rot: [Math.PI / 2, 0, 0] });
+  cylinder(0.034, 0.034, 0.020, C.goldDark, { parent: spine, pos: [0, 0.055, 0.156], rot: [Math.PI / 2, 0, 0], outline: false });
+  sphere(0.018, C.gold, { parent: spine, pos: [0, 0.055, 0.165], outline: false });
 
-  // z of the head surface at (x, y), so face details sit on the skin
+  // Hanging pleated front loincloth flap with golden trim
+  capsule(0.046, 0.12, C.cloth, { parent: spine, pos: [0, -0.082, 0.150], scale: [1.45, 1.15, 0.22] });
+  capsule(0.007, 0.082, C.gold, { parent: spine, pos: [0, -0.150, 0.156], rot: [0, 0, Math.PI / 2], outline: false });
+
+  // Saffron sash (uttariya): draped over character's left shoulder (+X), running across chest to right hip (-X)
+  capsule(0.044, 0.28, C.sash, { parent: spine, pos: [0.01, 0.16, 0.082], rot: [0.08, 0.05, -0.58], scale: [1.30, 1.0, 0.36] });
+  capsule(0.042, 0.28, C.sash, { parent: spine, pos: [0.01, 0.16, -0.082], rot: [-0.08, -0.05, -0.58], scale: [1.30, 1.0, 0.36] });
+  sphere(0.065, C.sash, { parent: spine, pos: [0.118, 0.265, 0], scale: [1.0, 0.85, 1.25] });
+  // Right hip sash knot / folded tail
+  sphere(0.044, C.sash, { parent: spine, pos: [-0.135, 0.02, 0.04], scale: [0.9, 1.2, 0.8] });
+  capsule(0.026, 0.08, C.sash, { parent: spine, pos: [-0.145, -0.04, 0.03], rot: [0, 0, 0.2], scale: [1.0, 1.0, 0.4] });
+
+  // Sacred rudraksha bead necklace around the neck & upper chest
+  torus(0.106, 0.013, C.beads, { parent: spine, pos: [0, 0.252, 0.025], rot: [Math.PI / 2 + 0.36, 0, 0] });
+  sphere(0.018, C.gold, { parent: spine, pos: [0, 0.222, 0.095], outline: false }); // central guru bead / pendant
+
+  // Neck
+  cylinder(0.046, 0.054, 0.085, C.skin, { parent: spine, pos: [0, 0.29, 0] });
+
+  // ---- head: cute vanara boy proportions
+  const head = grp(spine, 0, 0.31, 0);
+  const R = 0.25, CY = 0.2, SY = 0.98, SZ = 0.97;
+  sphere(R, C.skin, { parent: head, pos: [0, CY, 0], scale: [1.02, SY, SZ] });
+
   const faceZ = (x, y) => {
     const dy = (y - CY) / SY;
     return Math.sqrt(Math.max(0, R * R - x * x - dy * dy)) * SZ;
   };
 
-  // ears
-  [1, -1].forEach((s) => {
-    sphere(0.06, C.skin, { parent: head, pos: [s * 0.245, 0.17, -0.01], scale: [0.5, 1, 0.8] });
-    sphere(0.035, C.skinDark, { parent: head, pos: [s * 0.255, 0.17, 0.0], scale: [0.35, 1, 0.7], outline: false });
+  // ---- Vanara Muzzle (Snout): soft, shallow peachy-cream mound contouring the lower face
+  const muzzleY = 0.125;
+  const mZ = faceZ(0, muzzleY);
+  sphere(0.122, C.skinMuzzle, {
+    parent: head,
+    pos: [0, muzzleY, mZ - 0.035],
+    scale: [1.18, 0.76, 0.42],
+    outline: false,
   });
 
-  // eyes (big, anime-style), each in its own group so they can blink
+  // Vanara Nose: small cute dark-tan button on the upper muzzle
+  sphere(0.014, C.skinDark, {
+    parent: head,
+    pos: [0, 0.156, faceZ(0, 0.156) + 0.014],
+    scale: [1.2, 0.85, 0.6],
+    outline: false,
+  });
+
+  // Upbeat cheerful smile on the muzzle
+  make(new THREE.TorusGeometry(0.034, 0.006, 6, 20, Math.PI), C.mouth, {
+    parent: head,
+    pos: [0, 0.110, faceZ(0, 0.110) + 0.016],
+    rot: [0, 0, Math.PI],
+    scale: [1.05, 0.70, 0.5],
+    outline: false,
+  });
+
+  // Cheeks: rosy blush on outer cheeks flanking the muzzle
+  [1, -1].forEach((s) => {
+    sphere(0.036, C.blush, {
+      parent: head,
+      pos: [s * 0.148, 0.130, faceZ(s * 0.148, 0.130) + 0.005],
+      scale: [1, 0.72, 0.25],
+      outline: false,
+    });
+  });
+
+  // ---- Vanara Ears: expressive, slightly flared at the upper tip
+  [1, -1].forEach((s) => {
+    sphere(0.060, C.skin, { parent: head, pos: [s * 0.255, 0.175, -0.01], rot: [0.1, s * 0.25, s * -0.15], scale: [0.46, 1.15, 0.85] });
+    sphere(0.034, C.skinDark, { parent: head, pos: [s * 0.262, 0.175, 0.005], rot: [0.1, s * 0.25, s * -0.15], scale: [0.3, 0.95, 0.7], outline: false });
+  });
+
+  // ---- Eyes: large, expressive anime eyes with dark upper lash line & dual highlights
   const eyes = [1, -1].map((s) => {
-    const x = s * 0.085, y = 0.19;
-    const eye = grp(head, x, y, faceZ(x, y) + 0.004);
-    sphere(0.058, C.white, { parent: eye, scale: [0.85, 1.05, 0.4] });
-    sphere(0.042, C.iris, { parent: eye, pos: [0, -0.002, 0.014], scale: [0.95, 1.1, 0.45], outline: false });
-    sphere(0.011, C.white, { parent: eye, pos: [0.014, 0.016, 0.036], scale: [1, 1, 0.6], outline: false });
+    const x = s * 0.090, y = 0.188;
+    const eye = grp(head, x, y, faceZ(x, y) + 0.005);
+
+    // Sclera (white)
+    sphere(0.052, C.white, { parent: eye, scale: [0.84, 1.04, 0.42] });
+    // Upper eyelid / lash line
+    capsule(0.007, 0.048, C.hair, {
+      parent: eye,
+      pos: [0, 0.038, 0.018],
+      rot: [0, 0, Math.PI / 2 + s * 0.12],
+      scale: [1, 1, 0.4],
+      outline: false,
+    });
+    // Iris (warm chestnut brown)
+    sphere(0.042, C.iris, { parent: eye, pos: [0, -0.002, 0.013], scale: [0.96, 1.08, 0.45], outline: false });
+    // Pupil (deep dark black)
+    sphere(0.022, C.pupil, { parent: eye, pos: [0, -0.002, 0.026], scale: [1, 1.05, 0.4], outline: false });
+    // Primary large specular shine
+    sphere(0.013, C.white, { parent: eye, pos: [s * 0.012, 0.016, 0.034], scale: [1, 1, 0.5], outline: false });
+    // Secondary twinkle
+    sphere(0.007, C.white, { parent: eye, pos: [-s * 0.010, -0.014, 0.031], scale: [1, 1, 0.5], outline: false });
+
     return eye;
   });
 
-  // brows, nose, mouth, cheeks
+  // Eyebrows: arched, confident dark chocolate brows
   [1, -1].forEach((s) => {
-    const x = s * 0.085;
-    capsule(0.009, 0.04, C.hair, {
-      parent: head, pos: [x, 0.265, faceZ(x, 0.265) + 0.004], rot: [0, 0, Math.PI / 2 - s * 0.12], outline: false,
+    capsule(0.009, 0.046, C.hair, {
+      parent: head,
+      pos: [s * 0.092, 0.262, faceZ(s * 0.092, 0.262) + 0.006],
+      rot: [0.08, s * 0.12, Math.PI / 2 - s * 0.14],
+      scale: [1, 1, 0.45],
+      outline: false,
     });
-    sphere(0.034, C.blush, {
-      parent: head, pos: [s * 0.14, 0.13, faceZ(s * 0.14, 0.13) + 0.002], scale: [1, 0.7, 0.25], outline: false,
+  });
+
+  // ---- Vaishnava U-Tilak: crisp white "U" mark with sacred red vertical stripe in center
+  const ty = 0.318;
+  const tz = faceZ(0, ty) + 0.005;
+  // Left and right vertical arms of the "U"
+  [0.016, -0.016].forEach((x) => {
+    capsule(0.0075, 0.052, C.white, {
+      parent: head, pos: [x, ty + 0.004, tz], rot: [-0.55, 0, 0], scale: [1, 1, 0.4], outline: false,
     });
   });
-  sphere(0.014, C.skinDark, { parent: head, pos: [0, 0.165, faceZ(0, 0.165) + 0.006], outline: false });
-  make(new THREE.TorusGeometry(0.035, 0.007, 6, 16, Math.PI), C.mouth, {
-    parent: head, pos: [0, 0.118, faceZ(0, 0.118) + 0.003], rot: [0, 0, Math.PI], outline: false,
+  // Bottom connected loop of the "U"
+  sphere(0.0075, C.white, {
+    parent: head, pos: [0, ty - 0.024, tz], scale: [2.3, 0.9, 0.4], outline: false,
+  });
+  // Center vermilion red vertical stripe
+  capsule(0.0065, 0.054, C.red, {
+    parent: head, pos: [0, ty + 0.004, tz + 0.003], rot: [-0.55, 0, 0], scale: [1, 1, 0.4], outline: false,
   });
 
-  // tilak: two white lines with a red centre, tilted to lie on the forehead
-  const tz = faceZ(0, 0.335) + 0.004;
-  [0.017, -0.017].forEach((x) => {
-    capsule(0.008, 0.05, C.white, { parent: head, pos: [x, 0.335, tz], rot: [-0.65, 0, 0], scale: [1, 1, 0.5], outline: false });
-  });
-  capsule(0.006, 0.04, C.red, { parent: head, pos: [0, 0.335, tz + 0.003], rot: [-0.65, 0, 0], scale: [1, 1, 0.5], outline: false });
+  // ---- Hair & Topknot (Shikha)
+  // Main back hair dome
+  sphere(0.285, C.hair, { parent: head, pos: [0, 0.225, -0.065], scale: [0.96, 1.02, 1.0] });
 
-  // hair: tilted cap (high hairline at the front, low at the back), back mass, bangs, spikes, topknot
-  make(new THREE.SphereGeometry(0.262, 28, 18, 0, Math.PI * 2, 0, 1.24), C.hair, {
-    parent: head, pos: [0, CY, -0.005], rot: [-0.5, 0, 0], scale: [1, SY, SZ],
-  });
-  sphere(0.235, C.hair, { parent: head, pos: [0, 0.2, -0.055] });
+  // Topknot (shikha) sitting atop the crown, angled naturally back
+  const topknotAngle = -0.15;
+  torus(0.062, 0.013, C.gold, { parent: head, pos: [0, 0.485, -0.05], rot: [Math.PI / 2 - topknotAngle, 0, 0], outline: false });
+  // Onion/teardrop shaped bun
+  sphere(0.088, C.hair, { parent: head, pos: [0, 0.548, -0.06], rot: [topknotAngle, 0, 0], scale: [0.95, 1.15, 0.95] });
+  sphere(0.046, C.hair, { parent: head, pos: [0, 0.632, -0.075], rot: [topknotAngle, 0, 0], scale: [0.82, 1.35, 0.82] });
 
-  const HR = 0.255;
-  const hairPoint = (theta, phi) => new THREE.Vector3(
-    HR * Math.sin(theta) * Math.sin(phi),
-    CY + HR * Math.cos(theta) * SY,
-    HR * Math.sin(theta) * Math.cos(phi) * SZ,
+  const hairPoint = (theta, phi, r) => new THREE.Vector3(
+    r * Math.sin(theta) * Math.sin(phi),
+    CY + r * Math.cos(theta) * SY,
+    r * Math.sin(theta) * Math.cos(phi) * SZ,
   );
-  // bangs and temple locks
-  for (let i = -3; i <= 3; i++) {
-    const phi = i * 0.32;
-    const p = hairPoint(0.75 + 0.35 * Math.abs(phi), phi);
-    const lock = cone(0.045, 0.11, C.hair, { parent: head, pos: [p.x, p.y - 0.03, p.z] });
-    orient(lock, new THREE.Vector3(Math.sin(phi) * 0.4, -1, 0.35));
+
+  // Fringe bangs: curved locks cleanly sweeping down both sides of the tilak
+  [-1.38, -1.02, -0.70, -0.36, 0.36, 0.70, 1.02, 1.38].forEach((phi) => {
+    const p = hairPoint(0.72 + 0.28 * Math.abs(phi), phi, 0.262);
+    const lock = sphere(0.044, C.hair, { parent: head, pos: [p.x, p.y - 0.018, p.z], scale: [0.85, 1.65, 0.7] });
+    orient(lock, new THREE.Vector3(Math.sin(phi) * 0.5, -1, 0.35));
+  });
+
+  // Temple & sideburn puffs in front of ears
+  [1, -1].forEach((s) => {
+    sphere(0.058, C.hair, { parent: head, pos: [s * 0.220, 0.285, 0.04], scale: [0.72, 1.25, 0.9] });
+  });
+
+  // Layered sculpted hair clumps around back and sides
+  for (let i = 0; i < 11; i++) {
+    const phi = Math.PI * 0.45 + i * (Math.PI / 9);
+    const theta = 1.12 + (i % 3) * 0.24;
+    const px = 0.265 * Math.sin(theta) * Math.sin(phi);
+    const py = CY + 0.265 * Math.cos(theta) * SY;
+    const pz = 0.265 * Math.sin(theta) * Math.cos(phi) * SZ;
+    const clump = sphere(0.076, C.hair, { parent: head, pos: [px * 1.02, py, pz * 1.02 - 0.025], scale: [1, 1.28, 1] });
+    orient(clump, new THREE.Vector3(px, py - CY - 0.25, pz));
   }
-  // messy spikes around the back and top
-  for (let i = 0; i < 9; i++) {
-    const phi = Math.PI * 0.55 + (i / 8) * Math.PI * 0.9 + (i % 2 ? 0.1 : -0.1);
-    const theta = 1.25 + (i % 3) * 0.1;
-    const p = hairPoint(theta, phi);
-    const spike = cone(0.06, 0.14, C.hair, { parent: head, pos: [p.x * 1.05, p.y, p.z * 1.05] });
-    orient(spike, new THREE.Vector3(p.x, p.y - CY - 0.05, p.z));
-  }
-  sphere(0.085, C.hair, { parent: head, pos: [0, 0.52, -0.03] });
-  torus(0.06, 0.013, C.gold, { parent: head, pos: [0, 0.462, -0.03], rot: [Math.PI / 2, 0, 0], outline: false });
-  cone(0.03, 0.07, C.hair, { parent: head, pos: [0, 0.6, -0.03] });
+
   if (adult) head.scale.setScalar(0.85);
 
-  // ---- arms: skin, gold armlet + bracelet, small round hand
+  // ---- arms: athletic boy arms, gold armlets (keyura) & wrist bracelets (kankana)
   const arms = [1, -1].map((side) => {
-    const shoulder = grp(spine, side * 0.165, 0.28, 0);
+    const shoulder = grp(spine, side * 0.148, 0.25, 0);
     shoulder.rotation.z = side * 0.1;
-    sphere(0.05, C.skin, { parent: shoulder });
-    capsule(0.045, 0.09, C.skin, { parent: shoulder, pos: [0, -0.085, 0] });
-    torus(0.05, 0.012, C.gold, { parent: shoulder, pos: [0, -0.07, 0], rot: [Math.PI / 2, 0, 0], outline: false });
+    sphere(0.044, C.skin, { parent: shoulder });
+    capsule(0.038, 0.12, C.skin, { parent: shoulder, pos: [0, -0.09, 0] });
+    // Golden armlet (keyura) on bicep
+    torus(0.042, 0.011, C.gold, { parent: shoulder, pos: [0, -0.07, 0], rot: [Math.PI / 2, 0, 0], outline: false });
 
-    const elbow = grp(shoulder, 0, -0.17, 0);
-    capsule(0.04, 0.09, C.skin, { parent: elbow, pos: [0, -0.075, 0] });
-    torus(0.044, 0.011, C.gold, { parent: elbow, pos: [0, -0.13, 0], rot: [Math.PI / 2, 0, 0], outline: false });
+    const elbow = grp(shoulder, 0, -0.18, 0);
+    capsule(0.034, 0.11, C.skin, { parent: elbow, pos: [0, -0.085, 0] });
+    // Golden wristband (kankana)
+    torus(0.038, 0.010, C.gold, { parent: elbow, pos: [0, -0.14, 0], rot: [Math.PI / 2, 0, 0], outline: false });
 
-    const hand = grp(elbow, 0, -0.155, 0);
-    sphere(0.05, C.skin, { parent: hand, pos: [0, -0.03, 0], scale: [1, 1.1, 0.85] });
+    // Hand: palm + thumb + fingers cluster
+    const hand = grp(elbow, 0, -0.17, 0);
+    sphere(0.038, C.skin, { parent: hand, pos: [0, -0.03, 0], scale: [0.95, 1.15, 0.82] });
+    // Stylized thumb & fingers
+    sphere(0.016, C.skin, { parent: hand, pos: [side * 0.025, -0.025, 0.015], scale: [0.8, 1.2, 0.8], outline: false });
+    sphere(0.022, C.skin, { parent: hand, pos: [0, -0.055, 0.005], scale: [1.1, 0.8, 0.8], outline: false });
+
     return { shoulder, elbow, hand, side };
   });
 
-  // ---- tail: chain of 10 segments, curls up at the end with a darker tuft
+  // ---- tail: majestic, long vanara tail arching proudly behind with dark fluffy tuft
   const tail = [];
-  let tailParent = grp(hips, 0, 0.06, -0.1);
-  for (let i = 0; i < 10; i++) {
-    const seg = grp(tailParent, 0, i === 0 ? 0 : 0.1, 0);
-    capsule(0.034 - i * 0.0012, 0.07, C.tail, { parent: seg, pos: [0, 0.05, 0] });
-    if (i === 9) sphere(0.05, C.tailTip, { parent: seg, pos: [0, 0.12, 0], scale: [0.9, 1.5, 0.9] });
+  let tailParent = grp(hips, 0, 0.045, -0.11);
+  for (let i = 0; i < TAIL_SEGMENTS; i++) {
+    const seg = grp(tailParent, 0, i === 0 ? 0 : TAIL_STEP, 0);
+    const col = i < 3 ? C.tailBase : i < TAIL_SEGMENTS - 2 ? C.tailMid : C.tailTip;
+    const r = Math.max(0.022, 0.038 - i * 0.0015);
+    capsule(r, 0.055, col, { parent: seg, pos: [0, TAIL_STEP / 2, 0] });
+
+    // Layered fluffy chocolate brown tuft at the tip
+    if (i === TAIL_SEGMENTS - 1) {
+      sphere(0.062, C.tailTip, { parent: seg, pos: [0, TAIL_STEP + 0.025, 0], scale: [0.92, 1.85, 0.92] });
+      sphere(0.045, C.tailTip, { parent: seg, pos: [0, TAIL_STEP + 0.075, 0.015], scale: [0.82, 1.35, 0.82], outline: false });
+    }
+
     seg.rotation.x = i === 0 ? TAIL_REST.base : TAIL_REST.curl;
     tail.push(seg);
     tailParent = seg;
   }
 
-  // ---- gada (mace): hidden for the child, shown for the adult
+  // ---- gada (mace): hidden for child, shown for adult
   const gada = grp(arms[1].hand, 0, -0.05, 0.04);
-  cylinder(0.018, 0.018, 0.4, C.goldDark, { parent: gada, pos: [0, 0.12, 0] });
-  sphere(0.09, C.gold, { parent: gada, pos: [0, 0.38, 0], scale: [1, 1.25, 1] });
+  cylinder(0.018, 0.018, 0.42, C.goldDark, { parent: gada, pos: [0, 0.12, 0] });
+  sphere(0.095, C.gold, { parent: gada, pos: [0, 0.38, 0], scale: [1, 1.25, 1] });
+  torus(0.098, 0.014, C.goldDark, { parent: gada, pos: [0, 0.38, 0], rot: [Math.PI / 2, 0, 0], outline: false });
+  cylinder(0.008, 0.024, 0.06, C.gold, { parent: gada, pos: [0, 0.52, 0] });
   gada.rotation.x = 0.6;
   gada.visible = adult;
 

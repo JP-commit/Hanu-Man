@@ -87,20 +87,23 @@ A 3D third-person adventure game based on the story of Hanuman. The player contr
   - Verified in browser with full cutscene, climbing, collectible, checkpoint, and summit gameplay at 60 FPS without errors.
 
 - **Bala Hanuman Character & Animation Integration** completed:
-  - Integrated `reference/hanuman.js` and `reference/hanumanAnim.js` directly into `src/characters/` and wired into `src/player.js`.
-  - Cel-shaded cartoon character built from Three.js primitives with welded smooth normal inverted-hull outlines:
-    - Warm golden fur, lighter muzzle with blush marks, big expressive cartoon eyes with blinking animation.
-    - Traditional vertical Vaishnava tilak on the forehead (white stripes with vermillion red center).
-    - Sculpted dark chocolate hair with fringe locks, temple locks, spikes, and high topknot with golden hair ring.
-    - Saffron diagonal chest sash, blue-grey waist cloth with bead belt, gold medallion buckle, front flap, and cream shorts with gold trim.
-    - Gold armlets, wristbands, anklets, bead necklace, bare feet, and bare hands.
-    - 10-segment articulated curved monkey tail with darker tufted tip.
+  - Applied the `img2threejs` character pipeline and guidelines (`https://github.com/img2threejs/img2threejs`) to achieve faithful visual recreation of `reference/Hanuman_Child.jpeg`:
+    - 3.2-head childlike vanara proportions matching the turnaround sheet.
+    - Sculpted peachy-cream vanara muzzle (`#fbd8bd`) with button nose and cheerful smile following the 6:1 width-to-protrusion ratio.
+    - Sacred Vaishnava U-tilak on forehead (connected white U-loop with vermilion red center line).
+    - Expressive anime/devotional eyes with dark upper lash contour, warm chestnut iris, deep black pupil, and dual specular highlights.
+    - Sculpted chocolate brown hair with layered bangs, temple curls, and high topknot bun (shikha) bound by a gold ring with natural backward tilt.
+    - Saffron diagonal sash (uttariya) draped over the left shoulder across the chest with hip knot.
+    - Puffy gathered cream dhoti shorts (kachha) with golden embroidered knee cuffs.
+    - Slate-blue waist wrap with a large circular gold medallion buckle and hanging pleated loincloth flap with gold trim.
+    - Traditional golden ornaments: bicep armlets (keyura), wrist bracelets (kankana), anklets (nupura), rudraksha bead necklace, and bare feet with defined toes.
+    - Long, majestic vanara tail arching proudly behind in an upright U-curve with a dark chocolate fluffy tuft.
   - Procedural animation system (`createHanumanAnimator`):
     - Natural idle breathing, periodic blinking, and continuous S-curve tail wave.
     - Locomotion running with counter-balanced arm/leg swings and trailing tail dynamics.
     - Mid-air jumping and falling poses with landing squash damping.
-  - Debug key (<kbd>K</kbd>) cleanly switches between Child Hanuman and Adult Hanuman (with broader shoulders and golden Gada mace).
-  - Verified at 60 FPS in browser with 0 console or WebGL errors.
+  - Debug key (<kbd>K</kbd>) cleanly switches between Child Hanuman and Adult Hanuman (with broader shoulders and golden fluted Gada mace).
+  - Multi-angle visual verification completed in browser across front, 3/4, 90° side, back, and close-up face views at 60 FPS with zero errors.
 
 ## Next Steps
 Ready for Stage 3: Chapter 2, Growing Up.
