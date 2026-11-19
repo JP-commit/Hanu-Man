@@ -1,37 +1,35 @@
 import * as THREE from 'three';
-import { PALETTE, createToonMaterial } from '../shaders/toon.js';
-import { addOutline } from '../shaders/outline.js';
+import { makeHanuman } from './characters/hanuman.js';
+import { HanumanAnimator } from './characters/hanumanAnim.js';
 
 /**
- * Child Hanuman Player Character:
- * - Smaller child proportions (capsule body + sphere head, height ~1.45m)
- * - Agile jumps (higher jump force for cliff platforming)
- * - Toon cel-shading + inverted hull outline
- * - Variable jump height, coyote time, jump buffering
- * - AABB collision separation against world colliders
- * - Cutscene animation overrides (summit leap, falling)
+ * Hanuman Player Character:
+ * - Expressive vanara character model built from primitives (makeHanuman)
+ * - Supports Child Hanuman (default) and Adult Hanuman preview (toggled with Key K)
+ * - Procedural skeletal animations (idle breathing & tail wave, running, jumping, falling, landing squash)
+ * - Physics & collisions unchanged: AABB collision, variable jump, coyote time, jump buffering
  */
 export class Player {
   constructor(scene, sunDirection) {
     this.scene = scene;
     this.sunDirection = sunDirection;
 
-    // Child Hanuman dimensions (smaller than adult character)
+    // Physics collider dimensions (MUST remain unchanged)
     this.radius = 0.30;
     this.height = 1.45;
 
-    // Movement configuration (controls unchanged)
+    // Movement configuration
     this.walkSpeed = 6.0;
     this.sprintSpeed = 10.2;
     this.acceleration = 18.0;
     this.deceleration = 14.0;
     this.turnSpeed = 14.0;
 
-    // Agile child jumping physics (slightly higher jumps)
+    // Jumping physics
     this.gravity = 24.0;
-    this.jumpForce = 11.2;          // higher leap for child Hanuman
-    this.coyoteDuration = 0.12;      // 120ms coyote window
-    this.jumpBufferDuration = 0.16;  // 160ms buffer window
+    this.jumpForce = 11.2;
+    this.coyoteDuration = 0.12;
+    this.jumpBufferDuration = 0.16;
 
     // State
     this.velocity = new THREE.Vector3();
@@ -40,87 +38,60 @@ export class Player {
     this.jumpBufferTimer = 0.0;
     this.facingAngle = 0.0;
 
-    // Cutscene override flags
     this.isCinematic = false;
-
-    // Squash & stretch animation values
     this.squash = 1.0;
-    this.runCycle = 0.0;
+    this.animTime = 0.0;
 
-    this._createMesh();
+    // Character model variation (Child vs Adult preview)
+    this.isAdult = false;
+
+    // Root group in scene
+    this.mesh = new THREE.Group();
+    this.mesh.name = 'player_root';
+    this.scene.add(this.mesh);
+
+    this.charModelGroup = null;
+    this._buildCharacterModel();
+    this._attachDebugKeys();
   }
 
-  _createMesh() {
-    this.mesh = new THREE.Group();
-    this.mesh.name = 'child_hanuman';
+  _buildCharacterModel() {
+    if (this.charModelGroup) {
+      this.mesh.remove(this.charModelGroup);
+    }
 
-    // Materials from palette
-    const bodyMaterial = createToonMaterial({
-      color: PALETTE.hanumanOrange,
-      midColor: PALETTE.hanumanOrangeMid,
-      shadowColor: PALETTE.hanumanOrangeShadow,
-      lightDirection: this.sunDirection,
-      thresholds: [-0.05, 0.45],
+    const hanuman = makeHanuman({
+      isAdult: this.isAdult,
+      sunDirection: this.sunDirection,
     });
 
-    const headMaterial = createToonMaterial({
-      color: PALETTE.softWhite,
-      midColor: PALETTE.softWhiteMid,
-      shadowColor: PALETTE.softWhiteShadow,
-      lightDirection: this.sunDirection,
-      thresholds: [-0.05, 0.45],
+    this.characterData = hanuman;
+    this.animator = new HanumanAnimator(hanuman.parts, this.isAdult);
+    this.charModelGroup = hanuman.group;
+
+    this.mesh.add(this.charModelGroup);
+  }
+
+  /**
+   * Requirement 7: Debug key (K) switches between child and adult versions for preview.
+   */
+  toggleCharacterModel() {
+    this.isAdult = !this.isAdult;
+    this._buildCharacterModel();
+  }
+
+  _attachDebugKeys() {
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyK') {
+        this.toggleCharacterModel();
+      }
     });
-
-    const accentMaterial = createToonMaterial({
-      color: PALETTE.terracottaRed,
-      midColor: '#B4574E',
-      shadowColor: PALETTE.terracottaRedShadow,
-      lightDirection: this.sunDirection,
-    });
-
-    // 1. Child Hanuman Capsule Body: radius 0.30m, length 0.50m (total capsule height 1.10m)
-    const capsuleGeom = new THREE.CapsuleGeometry(this.radius, 0.50, 16, 24);
-    this.bodyMesh = new THREE.Mesh(capsuleGeom, bodyMaterial);
-    this.bodyMesh.position.y = 0.50 / 2 + this.radius;
-    this.mesh.add(this.bodyMesh);
-
-    addOutline(this.bodyMesh, {
-      color: PALETTE.outlineDarkWarm,
-      thickness: 0.035,
-    });
-
-    // 2. Child Head: cute proportional sphere of radius 0.25m
-    const headGeom = new THREE.SphereGeometry(0.25, 20, 20);
-    this.headMesh = new THREE.Mesh(headGeom, headMaterial);
-    this.headMesh.position.y = 1.18;
-    this.mesh.add(this.headMesh);
-
-    addOutline(this.headMesh, {
-      color: PALETTE.outlineDarkWarm,
-      thickness: 0.035,
-    });
-
-    // 3. Stylized gold/terracotta child crown & headband
-    const headbandGeom = new THREE.CylinderGeometry(0.26, 0.26, 0.07, 20);
-    const headbandMesh = new THREE.Mesh(headbandGeom, accentMaterial);
-    headbandMesh.position.y = 1.23;
-    this.mesh.add(headbandMesh);
-
-    addOutline(headbandMesh, {
-      color: PALETTE.outlineDarkWarm,
-      thickness: 0.025,
-    });
-
-    this.scene.add(this.mesh);
   }
 
   get position() {
     return this.mesh.position;
   }
 
-  /**
-   * Resets player state and teleports to target position (e.g. checkpoint)
-   */
   respawn(pos) {
     this.position.copy(pos);
     this.velocity.set(0, 0, 0);
@@ -128,19 +99,24 @@ export class Player {
     this.coyoteTimer = 0.0;
     this.jumpBufferTimer = 0.0;
     this.isCinematic = false;
-    this.mesh.scale.set(1, 1, 1);
   }
 
   update(delta, input, cameraController, colliders = []) {
-    // During cinematics, manual movement input is suspended
+    this.animTime += delta;
+
+    // In cutscenes, manual controls are suspended
     if (this.isCinematic) {
       this.position.x += this.velocity.x * delta;
       this.position.y += this.velocity.y * delta;
       this.position.z += this.velocity.z * delta;
+
+      if (this.animator) {
+        this.animator.update(delta, this.animTime, this.velocity, this.isGrounded, this.squash);
+      }
       return;
     }
 
-    // 1. Calculate camera-relative movement vector
+    // 1. Camera-relative movement input (logic unchanged)
     const forward = cameraController.getHorizontalForward();
     const right = cameraController.getHorizontalRight();
 
@@ -162,7 +138,6 @@ export class Player {
     const targetVelX = inputDir.x * targetSpeed;
     const targetVelZ = inputDir.z * targetSpeed;
 
-    // Smooth horizontal acceleration & deceleration
     const accelRate = hasInput ? this.acceleration : this.deceleration;
     const lerpFactor = 1.0 - Math.exp(-accelRate * delta);
     this.velocity.x = THREE.MathUtils.lerp(this.velocity.x, targetVelX, lerpFactor);
@@ -186,10 +161,10 @@ export class Player {
       this.isGrounded = false;
       this.coyoteTimer = 0.0;
       this.jumpBufferTimer = 0.0;
-      this.squash = 1.35; // stretch on launch
+      this.squash = 1.35;
     }
 
-    // Variable jump height: releasing Space early dampens upward ascent
+    // Variable jump height
     if (this.velocity.y > 0 && !input.actions.jump) {
       this.velocity.y -= this.gravity * 2.2 * delta;
     } else {
@@ -201,15 +176,12 @@ export class Player {
     // 3. Collision Resolution & Position Updates
     const prevY = this.position.y;
 
-    // Step X
     this.position.x += this.velocity.x * delta;
     this._resolveHorizontalCollisions('x', colliders);
 
-    // Step Z
     this.position.z += this.velocity.z * delta;
     this._resolveHorizontalCollisions('z', colliders);
 
-    // Step Y
     this.position.y += this.velocity.y * delta;
     this._resolveVerticalCollisions(prevY, colliders);
 
@@ -225,22 +197,12 @@ export class Player {
       this.mesh.rotation.y = this.facingAngle;
     }
 
-    // 5. Procedural Animation (Run bob/tilt & Jump Squash/Stretch)
+    // 5. Landing Squash Recovery
     this.squash = THREE.MathUtils.lerp(this.squash, 1.0, 1.0 - Math.exp(-12.0 * delta));
 
-    if (this.isGrounded && horizontalSpeedSq > 0.5) {
-      const runFrequency = isSprinting ? 17.0 : 12.0;
-      this.runCycle += delta * runFrequency;
-      const bob = Math.sin(this.runCycle) * 0.05;
-      const tilt = Math.cos(this.runCycle) * 0.06;
-
-      this.bodyMesh.position.y = 0.50 / 2 + this.radius + Math.abs(bob);
-      this.bodyMesh.rotation.z = -tilt;
-      this.mesh.scale.set(this.squash, 1 / this.squash, this.squash);
-    } else {
-      this.bodyMesh.position.y = 0.50 / 2 + this.radius;
-      this.bodyMesh.rotation.z = 0;
-      this.mesh.scale.set(1 / Math.sqrt(this.squash), this.squash, 1 / Math.sqrt(this.squash));
+    // 6. Procedural Skeleton Animation Update
+    if (this.animator) {
+      this.animator.update(delta, this.animTime, this.velocity, this.isGrounded, this.squash);
     }
   }
 
@@ -289,17 +251,15 @@ export class Player {
     let groundedThisFrame = false;
     const r = this.radius * 0.9;
 
-    // Check ground plane (y = 0)
     if (this.position.y <= 0) {
       this.position.y = 0;
       if (this.velocity.y < -4.0) {
-        this.squash = 0.75;
+        this.squash = 0.72; // Squash on landing
       }
       this.velocity.y = 0;
       groundedThisFrame = true;
     }
 
-    // Check box colliders
     for (const box of colliders) {
       const overlapsX = this.position.x + r > box.min.x && this.position.x - r < box.max.x;
       const overlapsZ = this.position.z + r > box.min.z && this.position.z - r < box.max.z;
@@ -310,7 +270,7 @@ export class Player {
         if (prevY >= box.max.y - 0.3) {
           this.position.y = box.max.y;
           if (this.velocity.y < -4.0) {
-            this.squash = 0.75;
+            this.squash = 0.72;
           }
           this.velocity.y = 0;
           groundedThisFrame = true;

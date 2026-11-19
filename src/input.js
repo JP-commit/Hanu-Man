@@ -1,11 +1,12 @@
 /**
- * Input system decoupled from DOM events for keyboard, mouse, and future touch remapping.
+ * Input system supporting keyboard, mouse movement camera look,
+ * pointer lock, and mobile touch controls.
  */
 export class Input {
   constructor(domElement = window) {
     this.domElement = domElement;
 
-    // Abstract action states (can be driven by keyboard, gamepad, or touch UI)
+    // Abstract action states
     this.actions = {
       jump: false,
       jumpJustPressed: false,
@@ -14,26 +15,24 @@ export class Input {
 
     // Abstract 2D axes
     this.axes = {
-      moveX: 0, // -1 (left) to 1 (right)
-      moveY: 0, // 1 (forward) to -1 (backward)
-      lookDeltaX: 0, // mouse/touch drag X
-      lookDeltaY: 0, // mouse/touch drag Y
+      moveX: 0,      // -1 (left) to 1 (right)
+      moveY: 0,      // 1 (forward) to -1 (backward)
+      lookDeltaX: 0, // mouse movement X
+      lookDeltaY: 0, // mouse movement Y
       zoomDelta: 0,  // scroll wheel
     };
 
-    // Active keys set
     this.keysDown = new Set();
 
-    // Mouse drag state
-    this.isDragging = false;
+    this.hasMovedMouse = false;
     this.lastPointerX = 0;
     this.lastPointerY = 0;
+    this.isTouching = false;
 
     this._onKeyDown = this._onKeyDown.bind(this);
     this._onKeyUp = this._onKeyUp.bind(this);
-    this._onMouseDown = this._onMouseDown.bind(this);
     this._onMouseMove = this._onMouseMove.bind(this);
-    this._onMouseUp = this._onMouseUp.bind(this);
+    this._onClick = this._onClick.bind(this);
     this._onWheel = this._onWheel.bind(this);
     this._onTouchStart = this._onTouchStart.bind(this);
     this._onTouchMove = this._onTouchMove.bind(this);
@@ -46,16 +45,23 @@ export class Input {
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('keyup', this._onKeyUp);
 
-    // Mouse drag for camera orbit
-    window.addEventListener('mousedown', this._onMouseDown);
+    // Requirement 4: Camera rotation responds directly to mouse movement
     window.addEventListener('mousemove', this._onMouseMove);
-    window.addEventListener('mouseup', this._onMouseUp);
+    window.addEventListener('click', this._onClick);
     window.addEventListener('wheel', this._onWheel, { passive: false });
 
-    // Touch support for camera and touch remapping
+    // Touch controls for mobile / touchscreen
     window.addEventListener('touchstart', this._onTouchStart, { passive: true });
     window.addEventListener('touchmove', this._onTouchMove, { passive: true });
     window.addEventListener('touchend', this._onTouchEnd, { passive: true });
+  }
+
+  _onClick(e) {
+    // Optionally engage pointer lock on canvas click for smooth 360 camera control
+    const target = e.target;
+    if (target && target.tagName === 'CANVAS' && !document.pointerLockElement) {
+      target.requestPointerLock?.();
+    }
   }
 
   _onKeyDown(e) {
@@ -100,25 +106,31 @@ export class Input {
     this.axes.moveY = y;
   }
 
-  _onMouseDown(e) {
-    this.isDragging = true;
-    this.lastPointerX = e.clientX;
-    this.lastPointerY = e.clientY;
-  }
-
   _onMouseMove(e) {
-    if (!this.isDragging) return;
-    const dx = e.clientX - this.lastPointerX;
-    const dy = e.clientY - this.lastPointerY;
-    this.lastPointerX = e.clientX;
-    this.lastPointerY = e.clientY;
+    if (document.pointerLockElement) {
+      // Precise pointer lock delta
+      this.axes.lookDeltaX += e.movementX;
+      this.axes.lookDeltaY += e.movementY;
+    } else {
+      // Standard window mouse movement tracking
+      if (!this.hasMovedMouse) {
+        this.lastPointerX = e.clientX;
+        this.lastPointerY = e.clientY;
+        this.hasMovedMouse = true;
+        return;
+      }
 
-    this.axes.lookDeltaX += dx;
-    this.axes.lookDeltaY += dy;
-  }
+      const dx = e.clientX - this.lastPointerX;
+      const dy = e.clientY - this.lastPointerY;
+      this.lastPointerX = e.clientX;
+      this.lastPointerY = e.clientY;
 
-  _onMouseUp() {
-    this.isDragging = false;
+      // Filter out huge single-frame leaps when entering window
+      if (Math.abs(dx) < 250 && Math.abs(dy) < 250) {
+        this.axes.lookDeltaX += dx;
+        this.axes.lookDeltaY += dy;
+      }
+    }
   }
 
   _onWheel(e) {
@@ -127,14 +139,14 @@ export class Input {
 
   _onTouchStart(e) {
     if (e.touches.length === 1) {
-      this.isDragging = true;
+      this.isTouching = true;
       this.lastPointerX = e.touches[0].clientX;
       this.lastPointerY = e.touches[0].clientY;
     }
   }
 
   _onTouchMove(e) {
-    if (!this.isDragging || e.touches.length !== 1) return;
+    if (!this.isTouching || e.touches.length !== 1) return;
     const dx = e.touches[0].clientX - this.lastPointerX;
     const dy = e.touches[0].clientY - this.lastPointerY;
     this.lastPointerX = e.touches[0].clientX;
@@ -145,12 +157,9 @@ export class Input {
   }
 
   _onTouchEnd() {
-    this.isDragging = false;
+    this.isTouching = false;
   }
 
-  /**
-   * Helper to manually drive action states (e.g. from virtual on-screen touch buttons)
-   */
   setAction(name, value) {
     if (name === 'jump' && value && !this.actions.jump) {
       this.actions.jumpJustPressed = true;
@@ -158,16 +167,10 @@ export class Input {
     this.actions[name] = !!value;
   }
 
-  /**
-   * Helper to manually drive movement axes (e.g. from virtual joystick)
-   */
   setAxis(name, value) {
     this.axes[name] = value;
   }
 
-  /**
-   * Call at the end of each frame to reset instantaneous deltas
-   */
   update() {
     this.actions.jumpJustPressed = false;
     this.axes.lookDeltaX = 0;
@@ -178,9 +181,8 @@ export class Input {
   destroy() {
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
-    window.removeEventListener('mousedown', this._onMouseDown);
     window.removeEventListener('mousemove', this._onMouseMove);
-    window.removeEventListener('mouseup', this._onMouseUp);
+    window.removeEventListener('click', this._onClick);
     window.removeEventListener('wheel', this._onWheel);
     window.removeEventListener('touchstart', this._onTouchStart);
     window.removeEventListener('touchmove', this._onTouchMove);

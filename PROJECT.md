@@ -86,5 +86,16 @@ A 3D third-person adventure game based on the story of Hanuman. The player contr
   - Stored all story dialogues and scripts in `src/data/story.js`.
   - Verified in browser with full cutscene, climbing, collectible, checkpoint, and summit gameplay at 60 FPS without errors.
 
+- **Hanuman Character Model & Procedural Animation** completed:
+  - Built modular primitive-based Hanuman model (`src/characters/hanuman.js`) using cel-shading and inverted-hull dark-warm outlines.
+  - Divided body into separate animatable hierarchical groups: head, torso, upper arms, forearms, hands, thighs, shins, feet, and multi-segment curved tail.
+  - Implemented design specifications: golden-orange fur (`#E8833A`), lighter muzzle and cheeks (`#F7DCAC`), large expressive eyes, pointed vanara ears, saffron dhoti with red sash, gold necklace, armlets, bracelets, and crown.
+  - Exported `makeHanuman({ isAdult, sunDirection })` supporting both Child Hanuman (large expressive head, shorter limbs, no armour) and Adult Hanuman (broader chest and shoulders, athletic warrior silhouette).
+  - Added toggleable golden Gada (mace) prop attached to right hand (hidden by default on child, shown on adult).
+  - Updated camera rotation to respond directly to mouse movement instead of requiring mouse drag (`src/input.js`).
+  - Created procedural animation engine (`src/characters/hanumanAnim.js`): idle chest breathing and multi-segment S-curve tail sway, running arm/leg swings with knee bending and trailing tail, jump pose with arms raised and tucked knees, falling limb balance, and landing squash absorption.
+  - Replaced player placeholder capsule in `src/player.js` with `makeHanuman`, keeping physics collider size and movement logic identical.
+  - Added debug hotkey `KeyK` to toggle preview between Child Hanuman and Adult Hanuman.
+
 ## Next Steps
 Ready for Stage 3: Chapter 2, Growing Up.
