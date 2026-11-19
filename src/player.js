@@ -98,91 +98,126 @@ export class Player {
     const container = new THREE.Group();
     container.name = 'hunyuan_character_container';
 
-    const modelInstance = this.hunyuanModelCached.clone(true);
-    container.scale.copy(this.hunyuanScale);
-    modelInstance.position.copy(this.hunyuanOffset);
-    container.add(modelInstance);
+    // Clone the animated model hierarchy
+    const model = this.hunyuanModelCached;
+    container.add(model);
 
     this.charModelGroup = container;
     this.mesh.add(this.charModelGroup);
 
-    let animTime = 0;
-    this.animateCharacter = (delta, state) => {
-      animTime += delta;
+    // Setup AnimationMixer and Clips
+    if (this.hunyuanAnimations && this.hunyuanAnimations.length > 0) {
+      const mixer = new THREE.AnimationMixer(model);
+      this.hunyuanMixer = mixer;
 
-      // Squash & stretch recovery
-      this.squash = THREE.MathUtils.lerp(this.squash, 1.0, 10.0 * delta);
-      container.scale.y = this.hunyuanScale.y * this.squash;
-
-      if (state.grounded) {
-        if (state.speed > 0.05) {
-          // Dynamic run cycle bobbing and forward lean
-          const bobFreq = 12.0 * Math.min(state.speed, 1.4);
-          const bobAmp = 0.035 * Math.min(state.speed, 1.0);
-          container.position.y = Math.abs(Math.sin(animTime * bobFreq)) * bobAmp;
-          container.rotation.x = THREE.MathUtils.lerp(container.rotation.x, Math.min(state.speed * 0.12, 0.18), 8.0 * delta);
-          container.rotation.z = Math.sin(animTime * bobFreq * 0.5) * 0.035;
-        } else {
-          // Idle breathing
-          container.position.y = Math.sin(animTime * 2.2) * 0.01;
-          container.rotation.x = THREE.MathUtils.lerp(container.rotation.x, 0, 8.0 * delta);
-          container.rotation.z = THREE.MathUtils.lerp(container.rotation.z, 0, 8.0 * delta);
-        }
-      } else {
-        // Airborne jump / fall tilt
-        const jumpTilt = state.vy > 0 ? -0.14 : 0.12;
-        container.rotation.x = THREE.MathUtils.lerp(container.rotation.x, jumpTilt, 10.0 * delta);
-        container.rotation.z = THREE.MathUtils.lerp(container.rotation.z, 0, 8.0 * delta);
+      const actions = {};
+      for (const anim of this.hunyuanAnimations) {
+        const action = mixer.clipAction(anim);
+        actions[anim.name] = action;
       }
-    };
+      this.hunyuanActions = actions;
+
+      // Start with Idle animation
+      let currentAction = actions['Idle'] || actions['Run'] || Object.values(actions)[0];
+      if (currentAction) {
+        currentAction.play();
+      }
+
+      this.animateCharacter = (delta, state) => {
+        if (!this.hunyuanMixer) return;
+
+        // Choose appropriate animation state
+        let targetActionName = 'Idle';
+        if (!state.grounded) {
+          targetActionName = 'Jump';
+        } else if (state.speed > 0.05) {
+          targetActionName = 'Run';
+        } else {
+          targetActionName = 'Idle';
+        }
+
+        const targetAction = this.hunyuanActions[targetActionName];
+        if (targetAction && targetAction !== currentAction) {
+          targetAction.reset();
+          targetAction.fadeIn(0.18);
+          targetAction.play();
+          if (currentAction) {
+            currentAction.fadeOut(0.18);
+          }
+          currentAction = targetAction;
+        }
+
+        // Adjust run cadence dynamically with speed
+        if (targetActionName === 'Run' && currentAction) {
+          currentAction.timeScale = Math.max(0.8, Math.min(1.5, state.speed / 1.0));
+        }
+
+        // Squash & stretch recovery
+        this.squash = THREE.MathUtils.lerp(this.squash, 1.0, 10.0 * delta);
+        container.scale.y = this.squash;
+
+        // Forward lean during locomotion
+        if (state.grounded && state.speed > 0.05) {
+          container.rotation.x = THREE.MathUtils.lerp(container.rotation.x, 0.08, 8.0 * delta);
+        } else {
+          container.rotation.x = THREE.MathUtils.lerp(container.rotation.x, 0.0, 8.0 * delta);
+        }
+
+        this.hunyuanMixer.update(delta);
+      };
+    } else {
+      // Fallback procedural squash if animations missing
+      let animTime = 0;
+      this.animateCharacter = (delta, state) => {
+        animTime += delta;
+        this.squash = THREE.MathUtils.lerp(this.squash, 1.0, 10.0 * delta);
+        container.scale.y = this.squash;
+        if (state.grounded && state.speed > 0.05) {
+          container.position.y = Math.abs(Math.sin(animTime * 10)) * 0.03;
+        } else {
+          container.position.y = 0;
+        }
+      };
+    }
   }
 
   _loadHunyuanModel() {
     const loader = new GLTFLoader();
-    loader.load('/models/hanuman_white_mesh_50k.glb', (gltf) => {
+    loader.load('/models/animated/hanuman_animated.glb', (gltf) => {
       const model = gltf.scene;
-
-      const bbox = new THREE.Box3().setFromObject(model);
-      const size = new THREE.Vector3();
-      bbox.getSize(size);
-      const center = new THREE.Vector3();
-      bbox.getCenter(center);
-
-      const targetHeight = 1.45;
-      const s = targetHeight / size.y;
-      this.hunyuanScale = new THREE.Vector3(s, s, s);
-      this.hunyuanOffset = new THREE.Vector3(-center.x, -bbox.min.y, -center.z);
 
       const toonMat = new THREE.MeshToonMaterial({
         color: 0xdeb887,
-        roughness: 0.5,
+        roughness: 0.45,
       });
 
-      const meshes = [];
       model.traverse((child) => {
-        if (child.isMesh) meshes.push(child);
+        if (child.isMesh) {
+          child.geometry.computeVertexNormals();
+          child.material = toonMat;
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
       });
-
-      for (const m of meshes) {
-        m.geometry.computeVertexNormals();
-        m.material = toonMat;
-        m.castShadow = true;
-        m.receiveShadow = true;
-
-        addOutline(m, {
-          color: PALETTE.outlineDarkWarm,
-          thickness: 0.012,
-        });
-      }
 
       this.hunyuanModelCached = model;
+      this.hunyuanAnimations = gltf.animations || [];
       this.hunyuanLoaded = true;
+
+      console.log('Rigged Hanuman model loaded with animations:', this.hunyuanAnimations.map(a => a.name));
 
       if (this.useHunyuanMesh) {
         this._buildCharacterModel();
       }
     }, undefined, (err) => {
-      console.warn('Could not load Hunyuan GLB model, falling back to procedural rig:', err);
+      console.warn('Could not load animated Hunyuan GLB model, trying static fallback:', err);
+      // Fallback to static mesh if needed
+      loader.load('/models/hanuman_white_mesh_50k.glb', (fallbackGltf) => {
+        this.hunyuanModelCached = fallbackGltf.scene;
+        this.hunyuanAnimations = [];
+        this.hunyuanLoaded = true;
+        if (this.useHunyuanMesh) this._buildCharacterModel();
+      });
     });
   }
 
@@ -199,7 +234,7 @@ export class Player {
 
   getModelName() {
     if (this.useHunyuanMesh && this.hunyuanLoaded) {
-      return 'Hunyuan3D (AI Reconstructed)';
+      return 'Hunyuan3D (Rigged & Animated)';
     }
     return this.isAdult ? 'Procedural Adult' : 'Procedural Child';
   }
