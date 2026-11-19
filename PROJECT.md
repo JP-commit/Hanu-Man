@@ -105,5 +105,14 @@ A 3D third-person adventure game based on the story of Hanuman. The player contr
   - Debug key (<kbd>K</kbd>) cleanly switches between Child Hanuman and Adult Hanuman (with broader shoulders and golden fluted Gada mace).
   - Multi-angle visual verification completed in browser across front, 3/4, 90° side, back, and close-up face views at 60 FPS with zero errors.
 
+- **AI 3D Model Generation via Tencent Hunyuan3D-2.1 & Microsoft TRELLIS Evaluation**:
+  - Processed `reference/T-Pose_Turnaround.jpeg` into front, 3/4, side, and rear perspective crops with transparent background removal.
+  - Connected to Tencent Hunyuan3D-2.1 (`hunyuan3d-dit-v2-1` diffusion transformer architecture) on Hugging Face using `@gradio/client`.
+  - Successfully reconstructed the full 3D asset matching the T-pose reference image:
+    - `public/models/hanuman_white_mesh.glb`: 189,006 polygons, 94,485 vertices (3.4 MB master asset).
+    - `public/models/hanuman_white_mesh_50k.glb`: 50,000 polygons, 25,002 vertices (900 KB real-time web-optimized asset).
+  - Built interactive 3D model turnaround previewer (`preview_3d.html`) with front, 3/4, side, back, turntable auto-rotation, wireframe view, and cel-toon shading.
+  - Verified visual anatomy in browser: vanara facial muzzle, anime eyes, high topknot bun, upper torso sash, circular medallion belt buckle, dhoti folds, armlets, anklets, and non-intersecting upward-curved tail.
+
 ## Next Steps
 Ready for Stage 3: Chapter 2, Growing Up.
