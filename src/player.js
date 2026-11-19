@@ -51,6 +51,12 @@ export class Player {
     this.scene.add(this.mesh);
 
     this.charModelGroup = null;
+    this.expressions = ['happy', 'determined', 'angry', 'surprised', 'focused'];
+    this.expressionIndex = 0;
+
+    this.animPreviews = [null, 'climb', 'fly', 'land', 'idle', 'walk', 'run', 'jump'];
+    this.animPreviewIndex = 0;
+
     this._buildCharacterModel();
     this._attachDebugKeys();
   }
@@ -70,20 +76,52 @@ export class Player {
     this.charModelGroup = hanuman.group;
 
     this.mesh.add(this.charModelGroup);
+
+    // Reapply active expression
+    hanuman.setExpression(this.expressions[this.expressionIndex]);
   }
 
   /**
-   * Requirement 7: Debug key (K) switches between child and adult versions for preview.
+   * Switches between Child Hanuman and Adult Hanuman
    */
   toggleCharacterModel() {
     this.isAdult = !this.isAdult;
     this._buildCharacterModel();
   }
 
+  /**
+   * Programmatic expression setter (happy, determined, angry, surprised, focused)
+   */
+  setExpression(name) {
+    if (this.characterData) {
+      this.characterData.setExpression(name);
+      const idx = this.expressions.indexOf(name);
+      if (idx !== -1) this.expressionIndex = idx;
+    }
+  }
+
+  cycleExpression() {
+    this.expressionIndex = (this.expressionIndex + 1) % this.expressions.length;
+    const name = this.expressions[this.expressionIndex];
+    this.setExpression(name);
+  }
+
+  cycleAnimPreview() {
+    this.animPreviewIndex = (this.animPreviewIndex + 1) % this.animPreviews.length;
+    const stateName = this.animPreviews[this.animPreviewIndex];
+    if (this.animator) {
+      this.animator.setOverride(stateName);
+    }
+  }
+
   _attachDebugKeys() {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyK') {
         this.toggleCharacterModel();
+      } else if (e.code === 'KeyE') {
+        this.cycleExpression();
+      } else if (e.code === 'KeyP') {
+        this.cycleAnimPreview();
       }
     });
   }

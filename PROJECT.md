@@ -86,16 +86,17 @@ A 3D third-person adventure game based on the story of Hanuman. The player contr
   - Stored all story dialogues and scripts in `src/data/story.js`.
   - Verified in browser with full cutscene, climbing, collectible, checkpoint, and summit gameplay at 60 FPS without errors.
 
-- **Hanuman Character Model & Procedural Animation** completed:
-  - Built modular primitive-based Hanuman model (`src/characters/hanuman.js`) using cel-shading and inverted-hull dark-warm outlines.
-  - Divided body into separate animatable hierarchical groups: head, torso, upper arms, forearms, hands, thighs, shins, feet, and multi-segment curved tail.
-  - Implemented design specifications: golden-orange fur (`#E8833A`), lighter muzzle and cheeks (`#F7DCAC`), large expressive eyes, pointed vanara ears, saffron dhoti with red sash, gold necklace, armlets, bracelets, and crown.
-  - Exported `makeHanuman({ isAdult, sunDirection })` supporting both Child Hanuman (large expressive head, shorter limbs, no armour) and Adult Hanuman (broader chest and shoulders, athletic warrior silhouette).
-  - Added toggleable golden Gada (mace) prop attached to right hand (hidden by default on child, shown on adult).
-  - Updated camera rotation to respond directly to mouse movement instead of requiring mouse drag (`src/input.js`).
-  - Created procedural animation engine (`src/characters/hanumanAnim.js`): idle chest breathing and multi-segment S-curve tail sway, running arm/leg swings with knee bending and trailing tail, jump pose with arms raised and tucked knees, falling limb balance, and landing squash absorption.
-  - Replaced player placeholder capsule in `src/player.js` with `makeHanuman`, keeping physics collider size and movement logic identical.
-  - Added debug hotkey `KeyK` to toggle preview between Child Hanuman and Adult Hanuman.
+- **High-Quality Bala Hanuman Character Model & Animation Suite** completed:
+  - Faithfully modeled Bala Hanuman in Three.js directly matching the reference turnaround sheet ([reference/Hanuman_Child.jpeg](file:///home/jp/Documents/Hanu-Man/reference/Hanuman_Child.jpeg)).
+  - Sculpted facial features: large expressive eyes with custom painted iris/pupil/specular texture, defined eyebrows, lighter cream muzzle (`#FCE4C6`), dark nose, sculpted mouth, large vanara ears, and traditional vertical Vaishnava tilak (white 'U' with vermillion red center).
+  - Sculpted dark chocolate hair (`#3D2115`) with cheek- and forehead-framing locks, high topknot, and golden hair tie.
+  - Complete traditional attire: saffron-orange diagonal chest sash (`#E86A2B`), beaded Rudraksha necklace with gold pendant, cream dhoti shorts (`#FAF4E8`) with gold embroidered hems (`#E5B834`), dark charcoal waist sash (`#3C4E5E`) with central circular golden medallion buckle, and gold armlets, bracelets, and anklets.
+  - Bare hands and feet with sculpted individual fingers and toes.
+  - Long curved monkey tail with articulated segments and dark-brown tufted tip.
+  - Programmatic facial expression system (`happy`, `determined`, `angry`, `surprised`, `focused`) with real-time keybinding (<kbd>E</kbd>).
+  - 7 adventure game procedural animations with smooth blending: Idle (breathing & S-curve tail wave), Walking, Running, Jumping, Landing (3-point vanara crouch), Climbing, and Flying (<kbd>P</kbd> to preview poses).
+  - Adult warrior model preview with broader muscular build and golden Gada mace (<kbd>K</kbd> to toggle).
+  - Verified from front, side, and back at 60 FPS with zero console or WebGL errors.
 
 ## Next Steps
 Ready for Stage 3: Chapter 2, Growing Up.
