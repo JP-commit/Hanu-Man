@@ -192,36 +192,58 @@ export class Player {
 
   _loadHunyuanModel() {
     const loader = new GLTFLoader();
-    loader.load('/models/animated/hanuman_animated_colored.glb', (gltf) => {
-      const model = gltf.scene;
 
-      // Model is already calibrated to 1.45m height, center feet at y = 0
-      this.hunyuanOffset = new THREE.Vector3(0, 0, 0);
+    // Create 3-step nearest filter gradient map for toon shading
+    const colors = new Uint8Array([70, 160, 255]);
+    const gradientMap = new THREE.DataTexture(colors, 3, 1, THREE.RedFormat);
+    gradientMap.minFilter = THREE.NearestFilter;
+    gradientMap.magFilter = THREE.NearestFilter;
+    gradientMap.generateMipmaps = false;
+    gradientMap.needsUpdate = true;
+
+    loader.load('/models/bala-hanuman.glb', (gltf) => {
+      const model = gltf.scene;
 
       model.traverse((child) => {
         if (child.isMesh) {
           child.geometry.computeVertexNormals();
           child.castShadow = true;
           child.receiveShadow = true;
-          if (child.material) {
-            child.material.vertexColors = true;
-            child.material.roughness = 0.55;
-            child.material.metalness = 0.1;
+
+          const oldMat = child.material;
+          const toonMat = new THREE.MeshToonMaterial({
+            gradientMap: gradientMap,
+            vertexColors: !!child.geometry.attributes.color,
+          });
+
+          if (oldMat) {
+            if (oldMat.map) {
+              oldMat.map.colorSpace = THREE.SRGBColorSpace;
+              toonMat.map = oldMat.map;
+            }
+            if (oldMat.color) {
+              toonMat.color.copy(oldMat.color);
+            }
           }
+          child.material = toonMat;
         }
       });
+
+      // Compute bounding box and offset so feet rest directly on platform at y = 0
+      const box = new THREE.Box3().setFromObject(model);
+      this.hunyuanOffset = new THREE.Vector3(0, -box.min.y, 0);
 
       this.hunyuanModelCached = model;
       this.hunyuanAnimations = gltf.animations || [];
       this.hunyuanLoaded = true;
 
-      console.log('Rigged & Animated Colored Hanuman model loaded with animations:', this.hunyuanAnimations.map(a => a.name));
+      console.log('Bala Hanuman loaded directly from /models/bala-hanuman.glb with animations:', this.hunyuanAnimations.map(a => a.name));
 
       if (this.useHunyuanMesh) {
         this._buildCharacterModel();
       }
     }, undefined, (err) => {
-      console.warn('Could not load animated colored Hanuman model, trying static fallback:', err);
+      console.warn('Could not load /models/bala-hanuman.glb, trying fallback:', err);
       loader.load('/models/hanuman_colored.glb', (fallbackGltf) => {
         this.hunyuanModelCached = fallbackGltf.scene;
         this.hunyuanAnimations = [];
