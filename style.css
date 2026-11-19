@@ -23,6 +23,11 @@ canvas {
   width: 100%;
   height: 100%;
   display: block;
+  cursor: grab;
+}
+
+canvas:active {
+  cursor: grabbing;
 }
 
 .hud-overlay {
@@ -30,7 +35,7 @@ canvas {
   top: 16px;
   left: 16px;
   padding: 12px 18px;
-  background: rgba(244, 239, 230, 0.9); /* Soft white architecture tint */
+  background: rgba(244, 239, 230, 0.92); /* Soft white architecture */
   border: 2px solid #381F15; /* Dark-warm outline */
   border-radius: 8px;
   color: #381F15;
@@ -54,7 +59,54 @@ canvas {
 }
 
 .hud-instructions {
-  font-size: 0.75rem;
-  color: #555;
-  margin-top: 6px;
+  font-size: 0.78rem;
+  color: #4A2B20;
+  margin-top: 8px;
+  line-height: 1.45;
+}
+
+.hud-key {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #FFF;
+  border: 1px solid #C8645A;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: #381F15;
+}
+
+/* Requirement 8: Small debug overlay showing FPS and whether player is grounded */
+.debug-overlay {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 10px 14px;
+  background: rgba(43, 24, 16, 0.85); /* Dark-warm background */
+  border: 2px solid #E8833A; /* Hanuman orange accent */
+  border-radius: 6px;
+  color: #F4EFE6; /* Soft white */
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.debug-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.debug-val {
+  font-weight: 700;
+}
+
+.debug-val.grounded-true {
+  color: #79D48A;
+}
+
+.debug-val.grounded-false {
+  color: #FFA45B;
 }

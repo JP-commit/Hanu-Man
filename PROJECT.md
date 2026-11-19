@@ -35,7 +35,7 @@ A 3D third-person adventure game based on the story of Hanuman. The player contr
 
 ## Stages
 - [x] Stage 0: Foundation (project setup, cel shader, outline, palette)
-- [ ] Stage 1: Core movement (run, jump, camera, collisions)
+- [x] Stage 1: Core movement (run, jump, camera, collisions)
 - [ ] Stage 2: Chapter 1, The Sun
 - [ ] Stage 3: Chapter 2, Growing Up
 - [ ] Stage 4: Chapter 3, Leap to Lanka
@@ -62,5 +62,16 @@ A 3D third-person adventure game based on the story of Hanuman. The player contr
   - Modularized code into `main.js`, `scene.js`, `shaders/toon.js`, and `shaders/outline.js`.
   - Verified clean build and runtime rendering with zero console or shader errors.
 
+- **Stage 1: Core movement** completed:
+  - Replaced test capsule with player placeholder character (capsule body + sphere head, orange accent palette `#E8833A`, cel-shaded with inverted-hull outline) in `src/player.js`.
+  - Implemented decoupled input system (`src/input.js`) supporting WASD/arrows, Shift sprint, Space jump, mouse drag look, and scroll zoom, ready for touch/gamepad remapping.
+  - Implemented third-person follow camera (`src/camera.js`) with smooth positional lag, spherical yaw/pitch drag, and bounded scroll zoom.
+  - Implemented lightweight custom physics: gravity, ground check, variable jump height (higher on hold), 0.1s coyote-time window, and 0.15s jump buffering.
+  - Implemented AABB collision resolution preventing walking through boxes, enabling wall sliding, platform landing, and bridge crossing.
+  - Built test level (`src/level.js`) featuring flat sand ground, multiple terracotta cliff platforms of varying heights, an elevated narrow bridge, and white stepping pillars.
+  - Added smooth character yaw rotation facing movement direction relative to camera heading with procedural run bob/tilt.
+  - Added real-time debug overlay in HUD tracking FPS, Grounded state, and Speed.
+  - Verified in browser with full movement, jumping, collision, and camera functionality at 60 FPS without errors.
+
 ## Next Steps
-Ready for Stage 1: Core movement (run, jump, camera, collisions).
+Ready for Stage 2: Chapter 1, The Sun.

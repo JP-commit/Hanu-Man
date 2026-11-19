@@ -3,16 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hanuman - Stage 0</title>
+    <title>Hanuman - Stage 1: Core Movement</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <div id="app"></div>
+
     <div class="hud-overlay">
       <div class="hud-title">Hanuman</div>
-      <div class="hud-subtitle">Stage 0: Foundation</div>
-      <div class="hud-instructions">Orbit camera: Drag to rotate &bull; Scroll to zoom &bull; Right-drag to pan</div>
+      <div class="hud-subtitle">Stage 1: Core Movement</div>
+      <div class="hud-instructions">
+        <div><span class="hud-key">W A S D</span> / <span class="hud-key">&larr; &uarr; &rarr; &darr;</span> Run</div>
+        <div><span class="hud-key">Shift</span> Sprint &bull; <span class="hud-key">Space</span> Jump (hold for higher)</div>
+        <div><span class="hud-key">Mouse Drag</span> Rotate camera &bull; <span class="hud-key">Scroll</span> Zoom</div>
+      </div>
     </div>
+
+    <!-- Requirement 8: Small debug overlay showing FPS and whether player is grounded -->
+    <div class="debug-overlay">
+      <div class="debug-row">
+        <span>FPS:</span>
+        <span id="debug-fps" class="debug-val">60</span>
+      </div>
+      <div class="debug-row">
+        <span>Grounded:</span>
+        <span id="debug-grounded" class="debug-val grounded-true">YES</span>
+      </div>
+      <div class="debug-row">
+        <span>Speed:</span>
+        <span id="debug-speed" class="debug-val">0.0 m/s</span>
+      </div>
+    </div>
+
     <script type="module" src="./main.js"></script>
   </body>
 </html>

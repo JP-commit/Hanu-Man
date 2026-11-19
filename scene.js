@@ -1,11 +1,13 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { PALETTE, createToonMaterial } from './shaders/toon.js';
-import { addOutline } from './shaders/outline.js';
+import { PALETTE } from './shaders/toon.js';
+import { createLevel } from './src/level.js';
+import { Player } from './src/player.js';
+import { ThirdPersonCamera } from './src/camera.js';
+import { Input } from './src/input.js';
 
 /**
  * Creates flat stylized cloud shapes in the sky.
- * Each cloud is a cluster of overlapping flat circular discs (hand-painted anime style).
+ * Clustered flat circular discs with the soft white architecture palette tone.
  */
 function createCloud(x, y, z, scale = 1) {
   const cloudGroup = new THREE.Group();
@@ -19,7 +21,6 @@ function createCloud(x, y, z, scale = 1) {
     depthWrite: false,
   });
 
-  // Flat circles clustered into a stylized cloud silhouette
   const discs = [
     { radius: 2.2, offset: [0, 0, 0] },
     { radius: 1.7, offset: [-1.8, -0.3, 0] },
@@ -37,19 +38,18 @@ function createCloud(x, y, z, scale = 1) {
     cloudGroup.add(mesh);
   });
 
-  // Face roughly towards scene center
   cloudGroup.lookAt(0, 5, 0);
-
   return cloudGroup;
 }
 
 /**
- * Initializes and builds the Three.js scene according to Stage 0 requirements:
- * - Sky-blue background (#7FB0E8)
- * - Sand-coloured ground plane (#F0C9A0)
- * - Test capsule with 3-band cel-shading and inverted-hull outline
- * - Directional sun light + stylized white clouds in the sky
- * - Orbit camera with smooth auto-rotation
+ * Stage 1 Scene Setup:
+ * - Sky blue background & stylized clouds
+ * - Sun directional light & sun disc
+ * - Stage 1 Level (sand ground, terracotta cliffs, bridge, white pillars)
+ * - Hanuman Player placeholder (capsule body + sphere head + orange accent + outline)
+ * - Third-person follow camera with drag-to-look and scroll-to-zoom
+ * - Input system
  */
 export function setupScene(container) {
   // 1. Scene
@@ -58,109 +58,71 @@ export function setupScene(container) {
 
   // 2. Camera
   const camera = new THREE.PerspectiveCamera(
-    45,
+    50,
     window.innerWidth / window.innerHeight,
     0.1,
     500
   );
-  camera.position.set(0, 3.2, 8.5);
 
   // 3. Renderer
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.toneMapping = THREE.NoToneMapping; // Preserves exact flat art palette colors
+  renderer.toneMapping = THREE.NoToneMapping;
   container.appendChild(renderer.domElement);
 
-  // 4. Orbit Controls (slow orbit camera)
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 0.6; // Slow orbit so the user can look around
-  controls.target.set(0, 1.2, 0);
-  controls.minDistance = 2.5;
-  controls.maxDistance = 35.0;
-  controls.maxPolarAngle = Math.PI / 2 - 0.03; // Stay above ground plane
-
-  // 5. Lighting: Sun Directional Light & Sun Disc
-  const sunPosition = new THREE.Vector3(20, 26, 16);
+  // 4. Lighting: Sun Directional Light & Sun Disc
+  const sunPosition = new THREE.Vector3(25, 30, 20);
   const sunDirection = sunPosition.clone().normalize();
 
-  const sunLight = new THREE.DirectionalLight('#FFF7EB', 1.25);
+  const sunLight = new THREE.DirectionalLight('#FFF7EB', 1.3);
   sunLight.position.copy(sunPosition);
   scene.add(sunLight);
 
   const ambientLight = new THREE.HemisphereLight(PALETTE.skyBlue, PALETTE.warmSand, 0.45);
   scene.add(ambientLight);
 
-  // Stylized sun disc visible high in the sky (alluding to Hanuman and the Sun)
-  const sunGeometry = new THREE.CircleGeometry(2.8, 32);
+  // Stylized sun disc visible high in the desert sky
+  const sunGeometry = new THREE.CircleGeometry(3.5, 32);
   const sunMaterial = new THREE.MeshBasicMaterial({
     color: '#FFE27A',
     side: THREE.DoubleSide,
   });
   const sunDisc = new THREE.Mesh(sunGeometry, sunMaterial);
-  sunDisc.position.copy(sunPosition.clone().multiplyScalar(3.0));
+  sunDisc.position.copy(sunPosition.clone().multiplyScalar(3.2));
   sunDisc.lookAt(0, 0, 0);
   scene.add(sunDisc);
 
-  // 6. Ground Plane (Warm sand #F0C9A0 with 3-band cel shading)
-  const groundGeometry = new THREE.CircleGeometry(45, 64);
-  const groundMaterial = createToonMaterial({
-    color: PALETTE.warmSand,
-    midColor: PALETTE.warmSandMid,
-    shadowColor: PALETTE.warmSandShadow,
-    lightDirection: sunDirection,
-    thresholds: [-0.1, 0.3],
-  });
-  const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
-  groundMesh.rotation.x = -Math.PI / 2;
-  groundMesh.position.y = 0;
-  scene.add(groundMesh);
-
-  // 7. Test Object: Capsule with Cel-Shading & Inverted-Hull Outline
-  const capsuleRadius = 0.6;
-  const capsuleLength = 1.4;
-  const capsuleGeometry = new THREE.CapsuleGeometry(capsuleRadius, capsuleLength, 20, 32);
-
-  const capsuleMaterial = createToonMaterial({
-    color: PALETTE.hanumanOrange,
-    midColor: PALETTE.hanumanOrangeMid,
-    shadowColor: PALETTE.hanumanOrangeShadow,
-    lightDirection: sunDirection,
-    thresholds: [-0.05, 0.45],
-  });
-
-  const capsuleMesh = new THREE.Mesh(capsuleGeometry, capsuleMaterial);
-  capsuleMesh.name = 'test_capsule';
-  // Position so the bottom of the capsule rests on the ground plane (y = 0)
-  const capsuleHalfHeight = capsuleLength / 2 + capsuleRadius;
-  capsuleMesh.position.set(0, capsuleHalfHeight, 0);
-  scene.add(capsuleMesh);
-
-  // Add thin dark-warm outline using inverted-hull method
-  addOutline(capsuleMesh, {
-    color: PALETTE.outlineDarkWarm,
-    thickness: 0.035,
-  });
-
-  // 8. Stylized Clouds (simple flat white shapes floating in the sky)
+  // 5. Stylized Clouds
   const clouds = [];
   const cloudConfigs = [
-    { x: -18, y: 16, z: -25, scale: 1.4, speed: 0.35 },
-    { x: 12, y: 19, z: -30, scale: 1.8, speed: 0.28 },
-    { x: 28, y: 14, z: -10, scale: 1.2, speed: 0.42 },
-    { x: -26, y: 20, z: 8, scale: 1.5, speed: 0.3 },
-    { x: -5, y: 22, z: -35, scale: 2.0, speed: 0.22 },
-    { x: 22, y: 17, z: 20, scale: 1.3, speed: 0.38 },
+    { x: -22, y: 18, z: -28, scale: 1.5, speed: 0.35 },
+    { x: 14, y: 22, z: -32, scale: 1.8, speed: 0.28 },
+    { x: 30, y: 16, z: -12, scale: 1.2, speed: 0.42 },
+    { x: -30, y: 24, z: 10, scale: 1.6, speed: 0.3 },
+    { x: -8, y: 25, z: -38, scale: 2.1, speed: 0.22 },
+    { x: 26, y: 19, z: 24, scale: 1.4, speed: 0.38 },
   ];
 
   cloudConfigs.forEach((cfg) => {
     const cloud = createCloud(cfg.x, cfg.y, cfg.z, cfg.scale);
     scene.add(cloud);
-    clouds.push({ group: cloud, speed: cfg.speed, initialZ: cfg.z });
+    clouds.push({ group: cloud, speed: cfg.speed });
   });
+
+  // 6. Test Level (Sand ground, terracotta cliffs, bridge, jumping pillars)
+  const level = createLevel(scene, sunDirection);
+
+  // 7. Player (Placeholder: capsule body + sphere head, orange palette accent + outline)
+  const player = new Player(scene, sunDirection);
+  // Start player slightly in front of the stepping pillars / cliffs
+  player.position.set(0, 0, 0);
+
+  // 8. Third-Person Follow Camera
+  const thirdPersonCamera = new ThirdPersonCamera(camera, player, renderer.domElement);
+
+  // 9. Input System
+  const input = new Input(renderer.domElement);
 
   // Resize handler
   function onResize() {
@@ -174,28 +136,33 @@ export function setupScene(container) {
 
   // Per-frame update hook
   function update(time, delta) {
-    controls.update();
+    // 1. Update player physics, collisions, input, and movement
+    player.update(delta, input, thirdPersonCamera, level.colliders);
 
-    // Gentle cloud drifting across the desert sky
+    // 2. Update third-person follow camera
+    thirdPersonCamera.update(delta, input);
+
+    // 3. Update drifting clouds
     clouds.forEach(({ group, speed }) => {
       group.position.x += speed * delta;
-      if (group.position.x > 45) {
-        group.position.x = -45;
+      if (group.position.x > 50) {
+        group.position.x = -50;
       }
-      group.lookAt(camera.position); // Billboard gently towards active camera angle
+      group.lookAt(camera.position);
     });
 
-    // Subtle gentle idle breathing on the test capsule
-    const breathe = 1 + Math.sin(time * 2.0) * 0.02;
-    capsuleMesh.scale.set(1 / Math.sqrt(breathe), breathe, 1 / Math.sqrt(breathe));
+    // 4. Reset instantaneous input deltas for the frame
+    input.update();
   }
 
   return {
     scene,
     camera,
     renderer,
-    controls,
-    capsule: capsuleMesh,
+    player,
+    thirdPersonCamera,
+    input,
+    level,
     update,
     onResize,
   };
