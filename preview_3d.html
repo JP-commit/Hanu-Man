@@ -2,45 +2,64 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Hunyuan3D-2.1 Hanuman 3D Model Turnaround</title>
+  <title>Bala Hanuman 3D Character - Colored, Rigged & Animated</title>
   <style>
-    body { margin: 0; background: #161622; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
-    #header { position: absolute; top: 12px; left: 16px; z-index: 10; background: rgba(18, 18, 28, 0.85); backdrop-filter: blur(8px); padding: 14px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); max-width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    body { margin: 0; background: #13131c; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+    #header { position: absolute; top: 12px; left: 16px; z-index: 10; background: rgba(18, 18, 28, 0.85); backdrop-filter: blur(8px); padding: 14px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); max-width: 440px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
     h2 { margin: 0 0 6px 0; color: #f5a623; font-size: 17px; font-weight: 700; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; background: #2d3748; color: #cbd5e1; margin-right: 6px; }
     .badge-primary { background: #d97706; color: #fff; }
+    .badge-success { background: #10b981; color: #fff; }
     .meta { font-size: 13px; color: #94a3b8; margin-top: 8px; line-height: 1.5; }
     .meta strong { color: #f1f5f9; }
-    #toolbar { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; gap: 8px; background: rgba(18, 18, 28, 0.85); backdrop-filter: blur(8px); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); }
+    
+    #controls-panel { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .toolbar { display: flex; gap: 8px; background: rgba(18, 18, 28, 0.88); backdrop-filter: blur(8px); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
     button { background: #27273a; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.15); padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
     button:hover { background: #3b3b55; color: #fff; border-color: #f5a623; }
     button.active { background: #d97706; color: #fff; border-color: #f5a623; }
+    .anim-btn.active { background: #2563eb; border-color: #60a5fa; color: #fff; }
     #turntableToggle.active { background: #10b981; border-color: #34d399; }
   </style>
 </head>
 <body>
   <div id="header">
     <div style="margin-bottom: 6px;">
-      <span class="badge badge-primary">AI Reconstructed</span>
-      <span class="badge">Tencent Hunyuan3D-2.1</span>
+      <span class="badge badge-primary">Full 3D Character</span>
+      <span class="badge badge-success">Colored & Rigged</span>
+      <span class="badge">Chapter 1 Bala</span>
     </div>
-    <h2>Bala Hanuman 3D Asset</h2>
+    <h2>Bala Hanuman 3D Character Model</h2>
     <div class="meta">
-      <div>Source: <strong>reference/T-Pose_Turnaround.jpeg</strong></div>
-      <div>Architecture: <strong>hunyuan3d-dit-v2-1 (Diffusion Transformer)</strong></div>
-      <div>Mesh: <strong id="vCount">94,485</strong> verts &bull; <strong id="pCount">189,006</strong> polys</div>
-      <div>Format: <strong>GLTF 2.0 Binary (.glb)</strong></div>
+      <div>Reference: <strong>reference/T-Pose_Turnaround.jpeg</strong></div>
+      <div>Armature: <strong>Mixamo 52-Joint Skeletal Hierarchy</strong></div>
+      <div>Animations: <strong>Idle &bull; Walk &bull; Run &bull; Jump</strong></div>
+      <div>Mesh: <strong id="vCount">24,982</strong> verts &bull; <strong id="pCount">50,000</strong> faces</div>
+      <div>Current State: <strong id="activeState" style="color: #60a5fa;">Rest Pose</strong></div>
     </div>
   </div>
 
-  <div id="toolbar">
-    <button id="btnFront" class="active">Front</button>
-    <button id="btnThreeQ">3/4 View</button>
-    <button id="btnSide">Side</button>
-    <button id="btnBack">Back</button>
-    <button id="turntableToggle">Auto-Rotate</button>
-    <button id="btnWireframe">Wireframe</button>
-    <button id="btnMaterial">Warm Cel-Toon</button>
+  <div id="controls-panel">
+    <!-- Animation Controls -->
+    <div class="toolbar">
+      <span style="font-size: 12px; font-weight: 700; color: #94a3b8; align-self: center; margin-right: 4px;">ANIMATIONS:</span>
+      <button id="btnAnimRest" class="anim-btn active">Rest / T-Pose</button>
+      <button id="btnAnimIdle" class="anim-btn">Idle</button>
+      <button id="btnAnimWalk" class="anim-btn">Walk</button>
+      <button id="btnAnimRun" class="anim-btn">Run</button>
+      <button id="btnAnimJump" class="anim-btn">Jump</button>
+    </div>
+
+    <!-- Camera Controls -->
+    <div class="toolbar">
+      <span style="font-size: 12px; font-weight: 700; color: #94a3b8; align-self: center; margin-right: 4px;">VIEW:</span>
+      <button id="btnFront" class="active">Front</button>
+      <button id="btnThreeQ">3/4 View</button>
+      <button id="btnSide">Side</button>
+      <button id="btnBack">Back</button>
+      <button id="turntableToggle">Auto-Rotate</button>
+      <button id="btnWireframe">Wireframe</button>
+    </div>
   </div>
 
   <script type="module">
@@ -58,7 +77,7 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.3;
+    renderer.toneMappingExposure = 1.35;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
@@ -92,63 +111,108 @@
       metalness: 0.2
     });
     const pedestal = new THREE.Mesh(pedestalGeo, pedestalMat);
-    pedestal.position.y = -1.04;
+    pedestal.position.y = -0.73;
     scene.add(pedestal);
 
     const ringGeo = new THREE.RingGeometry(1.18, 1.22, 64);
     const ringMat = new THREE.MeshBasicMaterial({ color: 0xd97706, side: THREE.DoubleSide });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = -0.99;
+    ring.position.y = -0.68;
     scene.add(ring);
 
+    let mixer = null;
+    let actions = {};
+    let activeAction = null;
     let currentMesh = null;
-    let standardMat = null;
-    let toonMat = null;
-    let clayMat = null;
-    let matIndex = 0;
     let autoRotate = false;
+    let clock = new THREE.Clock();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialAnim = urlParams.get('anim') || 'rest';
+    const freezeTime = urlParams.get('t') !== null ? parseFloat(urlParams.get('t')) : null;
+
+    function playAnimation(name, freezeAt = null) {
+      document.querySelectorAll('.anim-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('activeState').textContent = name === 'rest' ? 'Rest / T-Pose' : name;
+
+      if (name === 'rest') {
+        document.getElementById('btnAnimRest')?.classList.add('active');
+        if (activeAction) {
+          activeAction.stop();
+          activeAction = null;
+        }
+        if (mixer) mixer.stopAllAction();
+        return;
+      }
+
+      const btnId = 'btnAnim' + name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+      document.getElementById(btnId)?.classList.add('active');
+
+      const action = actions[name];
+      if (!action) return;
+
+      if (activeAction && activeAction !== action) {
+        activeAction.fadeOut(0.2);
+      }
+      action.reset().fadeIn(0.2).play();
+      activeAction = action;
+
+      if (freezeAt !== null) {
+        mixer.setTime(freezeAt);
+        action.paused = true;
+      } else {
+        action.paused = false;
+      }
+    }
 
     const loader = new GLTFLoader();
-    loader.load('/models/hanuman_white_mesh.glb', (gltf) => {
+    loader.load('/models/animated/hanuman_animated_colored.glb', (gltf) => {
       const model = gltf.scene;
 
-      const bbox = new THREE.Box3().setFromObject(model);
-      const center = new THREE.Vector3();
-      bbox.getCenter(center);
-      model.position.sub(center);
+      // Center character so hips are around origin
+      model.position.set(0, -0.725, 0);
 
       model.traverse((child) => {
         if (child.isMesh) {
           currentMesh = child;
-          child.geometry.computeVertexNormals();
-
-          standardMat = new THREE.MeshStandardMaterial({
-            color: 0xe59866,
-            roughness: 0.55,
-            metalness: 0.08
-          });
-
-          toonMat = new THREE.MeshToonMaterial({
-            color: 0xd97706
-          });
-
-          clayMat = new THREE.MeshStandardMaterial({
-            color: 0xdeb887,
-            roughness: 0.7,
-            metalness: 0.05
-          });
-
-          child.material = toonMat;
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material) {
+            child.material.vertexColors = true;
+            child.material.roughness = 0.55;
+            child.material.metalness = 0.1;
+          }
         }
       });
 
       scene.add(model);
+
+      if (gltf.animations && gltf.animations.length > 0) {
+        mixer = new THREE.AnimationMixer(model);
+        for (const clip of gltf.animations) {
+          actions[clip.name] = mixer.clipAction(clip);
+          console.log(`Action loaded: ${clip.name} (${clip.duration.toFixed(2)}s)`);
+        }
+
+        // Apply initial animation from URL params
+        if (initialAnim !== 'rest') {
+          const capName = initialAnim.charAt(0).toUpperCase() + initialAnim.slice(1).toLowerCase();
+          playAnimation(capName, freezeTime);
+        }
+      }
     });
 
+    // Button event listeners
+    document.getElementById('btnAnimRest').addEventListener('click', () => playAnimation('rest'));
+    document.getElementById('btnAnimIdle').addEventListener('click', () => playAnimation('Idle'));
+    document.getElementById('btnAnimWalk').addEventListener('click', () => playAnimation('Walk'));
+    document.getElementById('btnAnimRun').addEventListener('click', () => playAnimation('Run'));
+    document.getElementById('btnAnimJump').addEventListener('click', () => playAnimation('Jump'));
+
     const setView = (x, y, z, btn) => {
-      document.querySelectorAll('#toolbar button').forEach(b => {
-        if (b.id !== 'turntableToggle' && b.id !== 'btnWireframe' && b.id !== 'btnMaterial') {
+      document.querySelectorAll('.toolbar button').forEach(b => {
+        if (!b.classList.contains('anim-btn') && b.id !== 'turntableToggle' && b.id !== 'btnWireframe') {
           b.classList.remove('active');
         }
       });
@@ -179,25 +243,29 @@
       }
     });
 
-    const matNames = ['Warm Cel-Toon', 'Standard PBR', 'Warm Clay'];
-    const mats = () => [toonMat, standardMat, clayMat];
-    document.getElementById('btnMaterial').addEventListener('click', (e) => {
-      if (currentMesh) {
-        matIndex = (matIndex + 1) % 3;
-        currentMesh.material = mats()[matIndex];
-        currentMesh.material.wireframe = wireframeOn;
-        e.target.textContent = matNames[matIndex];
-      }
-    });
-
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
+    const initialView = urlParams.get('view') || 'front';
+    if (initialView === 'threeq') {
+      setView(2.5, 0.4, 2.8, document.getElementById('btnThreeQ'));
+    } else if (initialView === 'side') {
+      setView(3.8, 0.1, 0, document.getElementById('btnSide'));
+    } else if (initialView === 'back') {
+      setView(0, 0.1, -3.8, document.getElementById('btnBack'));
+    } else {
+      setView(0, 0.1, 3.8, document.getElementById('btnFront'));
+    }
+
     function animate() {
       requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      if (mixer && (!activeAction || !activeAction.paused)) {
+        mixer.update(delta);
+      }
       controls.update();
       renderer.render(scene, camera);
     }
