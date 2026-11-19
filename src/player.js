@@ -3,30 +3,35 @@ import { PALETTE, createToonMaterial } from '../shaders/toon.js';
 import { addOutline } from '../shaders/outline.js';
 
 /**
- * Player character controller with physics, variable jumping, coyote time,
- * jump buffering, AABB collision resolution, and smooth facing rotation.
+ * Child Hanuman Player Character:
+ * - Smaller child proportions (capsule body + sphere head, height ~1.45m)
+ * - Agile jumps (higher jump force for cliff platforming)
+ * - Toon cel-shading + inverted hull outline
+ * - Variable jump height, coyote time, jump buffering
+ * - AABB collision separation against world colliders
+ * - Cutscene animation overrides (summit leap, falling)
  */
 export class Player {
   constructor(scene, sunDirection) {
     this.scene = scene;
     this.sunDirection = sunDirection;
 
-    // Dimensions
-    this.radius = 0.35;
-    this.height = 1.85;
+    // Child Hanuman dimensions (smaller than adult character)
+    this.radius = 0.30;
+    this.height = 1.45;
 
-    // Movement configuration
+    // Movement configuration (controls unchanged)
     this.walkSpeed = 6.0;
-    this.sprintSpeed = 10.5;
+    this.sprintSpeed = 10.2;
     this.acceleration = 18.0;
     this.deceleration = 14.0;
     this.turnSpeed = 14.0;
 
-    // Jump & Gravity configuration
+    // Agile child jumping physics (slightly higher jumps)
     this.gravity = 24.0;
-    this.jumpForce = 9.8;
-    this.coyoteDuration = 0.10;   // 100ms window
-    this.jumpBufferDuration = 0.15; // 150ms window
+    this.jumpForce = 11.2;          // higher leap for child Hanuman
+    this.coyoteDuration = 0.12;      // 120ms coyote window
+    this.jumpBufferDuration = 0.16;  // 160ms buffer window
 
     // State
     this.velocity = new THREE.Vector3();
@@ -34,6 +39,9 @@ export class Player {
     this.coyoteTimer = 0.0;
     this.jumpBufferTimer = 0.0;
     this.facingAngle = 0.0;
+
+    // Cutscene override flags
+    this.isCinematic = false;
 
     // Squash & stretch animation values
     this.squash = 1.0;
@@ -44,7 +52,7 @@ export class Player {
 
   _createMesh() {
     this.mesh = new THREE.Group();
-    this.mesh.name = 'player';
+    this.mesh.name = 'child_hanuman';
 
     // Materials from palette
     const bodyMaterial = createToonMaterial({
@@ -70,11 +78,10 @@ export class Player {
       lightDirection: this.sunDirection,
     });
 
-    // 1. Capsule Body: radius 0.35m, cylinder length 0.65m (total capsule height 1.35m)
-    const capsuleGeom = new THREE.CapsuleGeometry(this.radius, 0.65, 16, 24);
+    // 1. Child Hanuman Capsule Body: radius 0.30m, length 0.50m (total capsule height 1.10m)
+    const capsuleGeom = new THREE.CapsuleGeometry(this.radius, 0.50, 16, 24);
     this.bodyMesh = new THREE.Mesh(capsuleGeom, bodyMaterial);
-    // Center capsule so its bottom is at y = 0
-    this.bodyMesh.position.y = 0.65 / 2 + this.radius;
+    this.bodyMesh.position.y = 0.50 / 2 + this.radius;
     this.mesh.add(this.bodyMesh);
 
     addOutline(this.bodyMesh, {
@@ -82,10 +89,10 @@ export class Player {
       thickness: 0.035,
     });
 
-    // 2. Head: Sphere of radius 0.28m resting on top of capsule
-    const headGeom = new THREE.SphereGeometry(0.28, 20, 20);
+    // 2. Child Head: cute proportional sphere of radius 0.25m
+    const headGeom = new THREE.SphereGeometry(0.25, 20, 20);
     this.headMesh = new THREE.Mesh(headGeom, headMaterial);
-    this.headMesh.position.y = 1.48;
+    this.headMesh.position.y = 1.18;
     this.mesh.add(this.headMesh);
 
     addOutline(this.headMesh, {
@@ -93,10 +100,10 @@ export class Player {
       thickness: 0.035,
     });
 
-    // 3. Small stylized orange/terracotta headband / accent crown
-    const headbandGeom = new THREE.CylinderGeometry(0.29, 0.29, 0.08, 20);
+    // 3. Stylized gold/terracotta child crown & headband
+    const headbandGeom = new THREE.CylinderGeometry(0.26, 0.26, 0.07, 20);
     const headbandMesh = new THREE.Mesh(headbandGeom, accentMaterial);
-    headbandMesh.position.y = 1.54;
+    headbandMesh.position.y = 1.23;
     this.mesh.add(headbandMesh);
 
     addOutline(headbandMesh, {
@@ -111,8 +118,29 @@ export class Player {
     return this.mesh.position;
   }
 
+  /**
+   * Resets player state and teleports to target position (e.g. checkpoint)
+   */
+  respawn(pos) {
+    this.position.copy(pos);
+    this.velocity.set(0, 0, 0);
+    this.isGrounded = true;
+    this.coyoteTimer = 0.0;
+    this.jumpBufferTimer = 0.0;
+    this.isCinematic = false;
+    this.mesh.scale.set(1, 1, 1);
+  }
+
   update(delta, input, cameraController, colliders = []) {
-    // 1. Calculate camera-relative movement input vector
+    // During cinematics, manual movement input is suspended
+    if (this.isCinematic) {
+      this.position.x += this.velocity.x * delta;
+      this.position.y += this.velocity.y * delta;
+      this.position.z += this.velocity.z * delta;
+      return;
+    }
+
+    // 1. Calculate camera-relative movement vector
     const forward = cameraController.getHorizontalForward();
     const right = cameraController.getHorizontalRight();
 
@@ -129,13 +157,12 @@ export class Player {
       inputDir.normalize();
     }
 
-    // Determine target speed
     const isSprinting = input.actions.sprint;
     const targetSpeed = hasInput ? (isSprinting ? this.sprintSpeed : this.walkSpeed) : 0.0;
     const targetVelX = inputDir.x * targetSpeed;
     const targetVelZ = inputDir.z * targetSpeed;
 
-    // Smooth horizontal acceleration / braking
+    // Smooth horizontal acceleration & deceleration
     const accelRate = hasInput ? this.acceleration : this.deceleration;
     const lerpFactor = 1.0 - Math.exp(-accelRate * delta);
     this.velocity.x = THREE.MathUtils.lerp(this.velocity.x, targetVelX, lerpFactor);
@@ -154,7 +181,6 @@ export class Player {
       this.jumpBufferTimer -= delta;
     }
 
-    // Trigger jump if buffered input is active and within coyote window
     if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0) {
       this.velocity.y = this.jumpForce;
       this.isGrounded = false;
@@ -163,17 +189,16 @@ export class Player {
       this.squash = 1.35; // stretch on launch
     }
 
-    // Variable jump height: if Space is released early while ascending, damp vertical speed
+    // Variable jump height: releasing Space early dampens upward ascent
     if (this.velocity.y > 0 && !input.actions.jump) {
       this.velocity.y -= this.gravity * 2.2 * delta;
     } else {
       this.velocity.y -= this.gravity * delta;
     }
 
-    // Clamp terminal fall speed
     this.velocity.y = Math.max(this.velocity.y, -32.0);
 
-    // 3. Collision Resolution & Position Update
+    // 3. Collision Resolution & Position Updates
     const prevY = this.position.y;
 
     // Step X
@@ -192,7 +217,6 @@ export class Player {
     const horizontalSpeedSq = this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z;
     if (horizontalSpeedSq > 0.04) {
       const targetAngle = Math.atan2(this.velocity.x, this.velocity.z);
-      // Shortest angular difference
       let diff = targetAngle - this.facingAngle;
       while (diff < -Math.PI) diff += Math.PI * 2;
       while (diff > Math.PI) diff -= Math.PI * 2;
@@ -201,20 +225,20 @@ export class Player {
       this.mesh.rotation.y = this.facingAngle;
     }
 
-    // 5. Procedural Animation (Subtle Run Cycle & Jump Squash/Stretch)
+    // 5. Procedural Animation (Run bob/tilt & Jump Squash/Stretch)
     this.squash = THREE.MathUtils.lerp(this.squash, 1.0, 1.0 - Math.exp(-12.0 * delta));
 
     if (this.isGrounded && horizontalSpeedSq > 0.5) {
-      const runFrequency = isSprinting ? 16.0 : 11.0;
+      const runFrequency = isSprinting ? 17.0 : 12.0;
       this.runCycle += delta * runFrequency;
-      const bob = Math.sin(this.runCycle) * 0.06;
-      const tilt = Math.cos(this.runCycle) * 0.05;
+      const bob = Math.sin(this.runCycle) * 0.05;
+      const tilt = Math.cos(this.runCycle) * 0.06;
 
-      this.bodyMesh.position.y = 0.65 / 2 + this.radius + Math.abs(bob);
+      this.bodyMesh.position.y = 0.50 / 2 + this.radius + Math.abs(bob);
       this.bodyMesh.rotation.z = -tilt;
       this.mesh.scale.set(this.squash, 1 / this.squash, this.squash);
     } else {
-      this.bodyMesh.position.y = 0.65 / 2 + this.radius;
+      this.bodyMesh.position.y = 0.50 / 2 + this.radius;
       this.bodyMesh.rotation.z = 0;
       this.mesh.scale.set(1 / Math.sqrt(this.squash), this.squash, 1 / Math.sqrt(this.squash));
     }
@@ -225,17 +249,14 @@ export class Player {
     const feetY = this.position.y;
     const headY = this.position.y + this.height;
 
-    // Small clearance so ground or platform floor isn't treated as a wall
     const bottomCheck = feetY + 0.10;
     const topCheck = headY - 0.05;
 
     for (const box of colliders) {
-      // Check vertical overlap
       if (topCheck <= box.min.y || bottomCheck >= box.max.y) {
         continue;
       }
 
-      // Check current AABB bounds
       const minX = this.position.x - r;
       const maxX = this.position.x + r;
       const minZ = this.position.z - r;
@@ -268,28 +289,25 @@ export class Player {
     let groundedThisFrame = false;
     const r = this.radius * 0.9;
 
-    // 1. Check ground plane (y = 0)
+    // Check ground plane (y = 0)
     if (this.position.y <= 0) {
       this.position.y = 0;
       if (this.velocity.y < -4.0) {
-        this.squash = 0.75; // Squash on hard landing
+        this.squash = 0.75;
       }
       this.velocity.y = 0;
       groundedThisFrame = true;
     }
 
-    // 2. Check box colliders
+    // Check box colliders
     for (const box of colliders) {
-      // Must overlap in horizontal footprint
       const overlapsX = this.position.x + r > box.min.x && this.position.x - r < box.max.x;
       const overlapsZ = this.position.z + r > box.min.z && this.position.z - r < box.max.z;
 
       if (!overlapsX || !overlapsZ) continue;
 
-      // Landing on top of box: falling down and feet passed below box top
       if (this.velocity.y <= 0 && this.position.y <= box.max.y) {
-        // Was feet previously above the platform?
-        if (prevY >= box.max.y - 0.25) {
+        if (prevY >= box.max.y - 0.3) {
           this.position.y = box.max.y;
           if (this.velocity.y < -4.0) {
             this.squash = 0.75;
@@ -297,10 +315,8 @@ export class Player {
           this.velocity.y = 0;
           groundedThisFrame = true;
         }
-      }
-      // Hitting head on bottom of box: ascending and head enters box bottom
-      else if (this.velocity.y > 0 && this.position.y + this.height >= box.min.y) {
-        if (prevY + this.height <= box.min.y + 0.25) {
+      } else if (this.velocity.y > 0 && this.position.y + this.height >= box.min.y) {
+        if (prevY + this.height <= box.min.y + 0.3) {
           this.position.y = box.min.y - this.height;
           this.velocity.y = 0;
         }

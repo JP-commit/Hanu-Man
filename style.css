@@ -30,17 +30,19 @@ canvas:active {
   cursor: grabbing;
 }
 
+/* --- HUD Top Left --- */
 .hud-overlay {
   position: absolute;
   top: 16px;
   left: 16px;
   padding: 12px 18px;
-  background: rgba(244, 239, 230, 0.92); /* Soft white architecture */
+  background: rgba(244, 239, 230, 0.94); /* Soft white architecture */
   border: 2px solid #381F15; /* Dark-warm outline */
   border-radius: 8px;
   color: #381F15;
   pointer-events: none;
-  box-shadow: 0 4px 12px rgba(56, 31, 21, 0.15);
+  box-shadow: 0 4px 14px rgba(56, 31, 21, 0.18);
+  z-index: 10;
 }
 
 .hud-title {
@@ -59,7 +61,7 @@ canvas:active {
 }
 
 .hud-instructions {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: #4A2B20;
   margin-top: 8px;
   line-height: 1.45;
@@ -76,21 +78,34 @@ canvas:active {
   color: #381F15;
 }
 
-/* Requirement 8: Small debug overlay showing FPS and whether player is grounded */
+.hud-mangoes {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(56, 31, 21, 0.25);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #C26300;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* --- Debug Overlay Top Right --- */
 .debug-overlay {
   position: absolute;
   top: 16px;
   right: 16px;
   padding: 10px 14px;
-  background: rgba(43, 24, 16, 0.85); /* Dark-warm background */
-  border: 2px solid #E8833A; /* Hanuman orange accent */
+  background: rgba(43, 24, 16, 0.88);
+  border: 2px solid #E8833A; /* Hanuman orange */
   border-radius: 6px;
-  color: #F4EFE6; /* Soft white */
+  color: #F4EFE6;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.8rem;
   line-height: 1.5;
   pointer-events: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 10;
 }
 
 .debug-row {
@@ -109,4 +124,206 @@ canvas:active {
 
 .debug-val.grounded-false {
   color: #FFA45B;
+}
+
+/* --- Dialogue System (Requirement 2) --- */
+.dialogue-box {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 36px);
+  max-width: 680px;
+  background: rgba(244, 239, 230, 0.96); /* Soft white */
+  border: 3px solid #381F15; /* Dark-warm outline */
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(56, 31, 21, 0.28);
+  padding: 18px 24px;
+  z-index: 100;
+  cursor: pointer;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.dialogue-box.dialogue-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 20px);
+}
+
+.dialogue-speaker {
+  display: inline-block;
+  padding: 3px 12px;
+  background: #C8645A; /* Terracotta red */
+  color: #F4EFE6;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border-radius: 4px;
+  border: 1.5px solid #381F15;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.dialogue-text {
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: #381F15;
+  min-height: 3.2em;
+  font-weight: 500;
+}
+
+.dialogue-prompt {
+  margin-top: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #C8645A;
+  text-align: right;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.dialogue-prompt.prompt-visible {
+  opacity: 1;
+  animation: pulsePrompt 1.4s infinite ease-in-out;
+}
+
+@keyframes pulsePrompt {
+  0%, 100% { opacity: 0.6; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(2px); }
+}
+
+/* --- Indra Lightning Flash & Screen Effects --- */
+.screen-flash {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #FFF;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 999;
+  transition: opacity 0.08s ease;
+}
+
+.screen-flash.flash-active {
+  opacity: 0.95;
+}
+
+/* --- Checkpoint Toast --- */
+.checkpoint-toast {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #5E9C94; /* Teal Dome */
+  color: #F4EFE6;
+  border: 2px solid #381F15;
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  z-index: 50;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  pointer-events: none;
+}
+
+.checkpoint-toast.toast-hidden {
+  opacity: 0;
+  transform: translate(-50%, -20px);
+}
+
+/* --- Chapter 1 Complete End Card (Requirement 8) --- */
+.end-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(30, 16, 10, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  transition: opacity 0.4s ease;
+}
+
+.end-card.end-card-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.end-card-box {
+  background: #F4EFE6;
+  border: 4px solid #381F15;
+  border-radius: 14px;
+  padding: 32px 36px;
+  max-width: 460px;
+  width: calc(100% - 40px);
+  text-align: center;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.end-card-heading {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #C8645A; /* Terracotta red */
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.end-card-subheading {
+  font-size: 1.0rem;
+  font-weight: 700;
+  color: #5E9C94; /* Teal dome */
+  margin-top: 4px;
+}
+
+.end-card-summary {
+  font-size: 0.92rem;
+  color: #381F15;
+  line-height: 1.5;
+  margin-top: 14px;
+}
+
+.end-card-score {
+  margin: 20px 0;
+  padding: 12px;
+  background: #FFF;
+  border: 2px dashed #C8645A;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  color: #381F15;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.end-card-score strong {
+  color: #E8833A;
+  font-size: 1.3rem;
+}
+
+.end-card-btn {
+  background: #E8833A;
+  color: #FFF;
+  border: 2px solid #381F15;
+  padding: 12px 28px;
+  border-radius: 8px;
+  font-size: 1.0rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(56, 31, 21, 0.25);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.end-card-btn:hover {
+  background: #D7732B;
+  transform: translateY(-2px);
+}
+
+.end-card-btn:active {
+  transform: translateY(1px);
 }

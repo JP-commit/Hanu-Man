@@ -36,7 +36,7 @@ A 3D third-person adventure game based on the story of Hanuman. The player contr
 ## Stages
 - [x] Stage 0: Foundation (project setup, cel shader, outline, palette)
 - [x] Stage 1: Core movement (run, jump, camera, collisions)
-- [ ] Stage 2: Chapter 1, The Sun
+- [x] Stage 2: Chapter 1, The Sun
 - [ ] Stage 3: Chapter 2, Growing Up
 - [ ] Stage 4: Chapter 3, Leap to Lanka
 - [ ] Stage 5: Chapter 4, Lanka
@@ -73,5 +73,18 @@ A 3D third-person adventure game based on the story of Hanuman. The player contr
   - Added real-time debug overlay in HUD tracking FPS, Grounded state, and Speed.
   - Verified in browser with full movement, jumping, collision, and camera functionality at 60 FPS without errors.
 
+- **Stage 2: Chapter 1, The Sun** completed:
+  - Built chapter game-state management system (`src/game.js`) managing `intro`, `playing`, `cutscene`, and `chapterEnd` states.
+  - Implemented dialogue and cutscene typewriter system (`src/ui/dialogue.js`) with continue prompts, cinematic camera cues, white screen lightning flash, and screen shake.
+  - Built Chapter 1 level (`src/levels/chapter1.js`) with starting village (white architecture + teal domes), ascending terracotta cliff platforms, narrow bridges, and jumping pillars.
+  - Implemented dynamic scalable celestial sun with layered warm halos that enlarges as child Hanuman ascends toward the summit.
+  - Added 7 collectible low-poly mangoes along the path with animated floating/spinning and HUD counter tracking.
+  - Added mid-climb checkpoint at the mountain ridge with automatic respawn on falling.
+  - Implemented intro cutscene: sunrise framing the sun with dialogue of child Hanuman's hunger, smoothly panning down to child Hanuman in the village.
+  - Tuned child Hanuman character with smaller proportions and agile high jumps.
+  - Implemented summit climax cutscene: dialogue, dramatic leap toward the sun, sun expanding to fill the view, Indra's lightning strike (flash + shake), falling hero cutscene, narrator sequence, and Chapter 1 Complete end card with restart button.
+  - Stored all story dialogues and scripts in `src/data/story.js`.
+  - Verified in browser with full cutscene, climbing, collectible, checkpoint, and summit gameplay at 60 FPS without errors.
+
 ## Next Steps
-Ready for Stage 2: Chapter 1, The Sun.
+Ready for Stage 3: Chapter 2, Growing Up.

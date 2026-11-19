@@ -4,6 +4,11 @@ import { setupScene } from './scene.js';
 const container = document.getElementById('app') || document.body;
 const sceneContext = setupScene(container);
 
+// Expose context for debugging and inspection
+window.__SCENE_CONTEXT__ = sceneContext;
+window.__GAME__ = sceneContext.game;
+window.__PLAYER__ = sceneContext.player;
+
 // Debug overlay elements
 const debugFps = document.getElementById('debug-fps');
 const debugGrounded = document.getElementById('debug-grounded');

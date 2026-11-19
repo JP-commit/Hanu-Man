@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { PALETTE } from './shaders/toon.js';
-import { createLevel } from './src/level.js';
+import { createChapter1Level } from './src/levels/chapter1.js';
 import { Player } from './src/player.js';
 import { ThirdPersonCamera } from './src/camera.js';
 import { Input } from './src/input.js';
+import { Game } from './src/game.js';
 
 /**
  * Creates flat stylized cloud shapes in the sky.
- * Clustered flat circular discs with the soft white architecture palette tone.
  */
 function createCloud(x, y, z, scale = 1) {
   const cloudGroup = new THREE.Group();
@@ -43,13 +43,15 @@ function createCloud(x, y, z, scale = 1) {
 }
 
 /**
- * Stage 1 Scene Setup:
- * - Sky blue background & stylized clouds
- * - Sun directional light & sun disc
- * - Stage 1 Level (sand ground, terracotta cliffs, bridge, white pillars)
- * - Hanuman Player placeholder (capsule body + sphere head + orange accent + outline)
- * - Third-person follow camera with drag-to-look and scroll-to-zoom
- * - Input system
+ * Stage 2 Scene Setup:
+ * - Chapter 1: The Sun
+ * - Sky blue background & drifting clouds
+ * - Directional sunlight and ambient hemisphere light
+ * - Chapter 1 Level (Village, ascending terracotta cliffs, narrow bridges, white pillars, checkpoint, summit, dynamic sun, mangoes)
+ * - Child Hanuman player
+ * - Third-person follow camera
+ * - Input controller
+ * - Game state system (intro, playing, cutscenes, chapterEnd)
  */
 export function setupScene(container) {
   // 1. Scene
@@ -71,37 +73,26 @@ export function setupScene(container) {
   renderer.toneMapping = THREE.NoToneMapping;
   container.appendChild(renderer.domElement);
 
-  // 4. Lighting: Sun Directional Light & Sun Disc
-  const sunPosition = new THREE.Vector3(25, 30, 20);
+  // 4. Lighting: Sun Directional Light & Ambient Sky Fill
+  const sunPosition = new THREE.Vector3(25, 38, 20);
   const sunDirection = sunPosition.clone().normalize();
 
-  const sunLight = new THREE.DirectionalLight('#FFF7EB', 1.3);
+  const sunLight = new THREE.DirectionalLight('#FFF7EB', 1.35);
   sunLight.position.copy(sunPosition);
   scene.add(sunLight);
 
   const ambientLight = new THREE.HemisphereLight(PALETTE.skyBlue, PALETTE.warmSand, 0.45);
   scene.add(ambientLight);
 
-  // Stylized sun disc visible high in the desert sky
-  const sunGeometry = new THREE.CircleGeometry(3.5, 32);
-  const sunMaterial = new THREE.MeshBasicMaterial({
-    color: '#FFE27A',
-    side: THREE.DoubleSide,
-  });
-  const sunDisc = new THREE.Mesh(sunGeometry, sunMaterial);
-  sunDisc.position.copy(sunPosition.clone().multiplyScalar(3.2));
-  sunDisc.lookAt(0, 0, 0);
-  scene.add(sunDisc);
-
   // 5. Stylized Clouds
   const clouds = [];
   const cloudConfigs = [
-    { x: -22, y: 18, z: -28, scale: 1.5, speed: 0.35 },
-    { x: 14, y: 22, z: -32, scale: 1.8, speed: 0.28 },
-    { x: 30, y: 16, z: -12, scale: 1.2, speed: 0.42 },
-    { x: -30, y: 24, z: 10, scale: 1.6, speed: 0.3 },
-    { x: -8, y: 25, z: -38, scale: 2.1, speed: 0.22 },
-    { x: 26, y: 19, z: 24, scale: 1.4, speed: 0.38 },
+    { x: -25, y: 22, z: -25, scale: 1.5, speed: 0.35 },
+    { x: 18, y: 26, z: -35, scale: 1.8, speed: 0.28 },
+    { x: 32, y: 18, z: -10, scale: 1.3, speed: 0.42 },
+    { x: -32, y: 28, z: 12, scale: 1.6, speed: 0.3 },
+    { x: -10, y: 30, z: -45, scale: 2.2, speed: 0.22 },
+    { x: 28, y: 22, z: 28, scale: 1.4, speed: 0.38 },
   ];
 
   cloudConfigs.forEach((cfg) => {
@@ -110,19 +101,28 @@ export function setupScene(container) {
     clouds.push({ group: cloud, speed: cfg.speed });
   });
 
-  // 6. Test Level (Sand ground, terracotta cliffs, bridge, jumping pillars)
-  const level = createLevel(scene, sunDirection);
+  // 6. Chapter 1 Level
+  const level = createChapter1Level(scene, sunDirection);
 
-  // 7. Player (Placeholder: capsule body + sphere head, orange palette accent + outline)
+  // 7. Child Hanuman Player (starts in village at z = 10 facing north)
   const player = new Player(scene, sunDirection);
-  // Start player slightly in front of the stepping pillars / cliffs
-  player.position.set(0, 0, 0);
+  player.position.set(0, 0, 10);
 
   // 8. Third-Person Follow Camera
   const thirdPersonCamera = new ThirdPersonCamera(camera, player, renderer.domElement);
 
   // 9. Input System
   const input = new Input(renderer.domElement);
+
+  // 10. Game State System (intro, playing, cutscenes, chapterEnd)
+  const game = new Game({
+    scene,
+    camera,
+    player,
+    thirdPersonCamera,
+    input,
+    level,
+  });
 
   // Resize handler
   function onResize() {
@@ -136,22 +136,28 @@ export function setupScene(container) {
 
   // Per-frame update hook
   function update(time, delta) {
-    // 1. Update player physics, collisions, input, and movement
+    // 1. Update player physics, collisions, and movement
     player.update(delta, input, thirdPersonCamera, level.colliders);
 
-    // 2. Update third-person follow camera
-    thirdPersonCamera.update(delta, input);
+    // 2. Update third-person follow camera (with collider obstacle avoidance)
+    thirdPersonCamera.update(delta, input, level.colliders);
 
-    // 3. Update drifting clouds
+    // 3. Update level (dynamic sun scaling with ascent, mango animations)
+    level.update(time, delta, player.position);
+
+    // 4. Update game state machine (intro, triggers, checkpoints, cutscenes)
+    game.update(time, delta);
+
+    // 5. Update drifting clouds
     clouds.forEach(({ group, speed }) => {
       group.position.x += speed * delta;
-      if (group.position.x > 50) {
-        group.position.x = -50;
+      if (group.position.x > 55) {
+        group.position.x = -55;
       }
       group.lookAt(camera.position);
     });
 
-    // 4. Reset instantaneous input deltas for the frame
+    // 6. Reset instantaneous input deltas
     input.update();
   }
 
@@ -163,6 +169,7 @@ export function setupScene(container) {
     thirdPersonCamera,
     input,
     level,
+    game,
     update,
     onResize,
   };
