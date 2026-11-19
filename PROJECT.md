@@ -86,17 +86,21 @@ A 3D third-person adventure game based on the story of Hanuman. The player contr
   - Stored all story dialogues and scripts in `src/data/story.js`.
   - Verified in browser with full cutscene, climbing, collectible, checkpoint, and summit gameplay at 60 FPS without errors.
 
-- **High-Quality Bala Hanuman Character Model & Animation Suite** completed:
-  - Faithfully modeled Bala Hanuman in Three.js directly matching the reference turnaround sheet ([reference/Hanuman_Child.jpeg](file:///home/jp/Documents/Hanu-Man/reference/Hanuman_Child.jpeg)).
-  - Sculpted facial features: large expressive eyes with custom painted iris/pupil/specular texture, defined eyebrows, lighter cream muzzle (`#FCE4C6`), dark nose, sculpted mouth, large vanara ears, and traditional vertical Vaishnava tilak (white 'U' with vermillion red center).
-  - Sculpted dark chocolate hair (`#3D2115`) with cheek- and forehead-framing locks, high topknot, and golden hair tie.
-  - Complete traditional attire: saffron-orange diagonal chest sash (`#E86A2B`), beaded Rudraksha necklace with gold pendant, cream dhoti shorts (`#FAF4E8`) with gold embroidered hems (`#E5B834`), dark charcoal waist sash (`#3C4E5E`) with central circular golden medallion buckle, and gold armlets, bracelets, and anklets.
-  - Bare hands and feet with sculpted individual fingers and toes.
-  - Long curved monkey tail with articulated segments and dark-brown tufted tip.
-  - Programmatic facial expression system (`happy`, `determined`, `angry`, `surprised`, `focused`) with real-time keybinding (<kbd>E</kbd>).
-  - 7 adventure game procedural animations with smooth blending: Idle (breathing & S-curve tail wave), Walking, Running, Jumping, Landing (3-point vanara crouch), Climbing, and Flying (<kbd>P</kbd> to preview poses).
-  - Adult warrior model preview with broader muscular build and golden Gada mace (<kbd>K</kbd> to toggle).
-  - Verified from front, side, and back at 60 FPS with zero console or WebGL errors.
+- **Bala Hanuman Character & Animation Integration** completed:
+  - Integrated `reference/hanuman.js` and `reference/hanumanAnim.js` directly into `src/characters/` and wired into `src/player.js`.
+  - Cel-shaded cartoon character built from Three.js primitives with welded smooth normal inverted-hull outlines:
+    - Warm golden fur, lighter muzzle with blush marks, big expressive cartoon eyes with blinking animation.
+    - Traditional vertical Vaishnava tilak on the forehead (white stripes with vermillion red center).
+    - Sculpted dark chocolate hair with fringe locks, temple locks, spikes, and high topknot with golden hair ring.
+    - Saffron diagonal chest sash, blue-grey waist cloth with bead belt, gold medallion buckle, front flap, and cream shorts with gold trim.
+    - Gold armlets, wristbands, anklets, bead necklace, bare feet, and bare hands.
+    - 10-segment articulated curved monkey tail with darker tufted tip.
+  - Procedural animation system (`createHanumanAnimator`):
+    - Natural idle breathing, periodic blinking, and continuous S-curve tail wave.
+    - Locomotion running with counter-balanced arm/leg swings and trailing tail dynamics.
+    - Mid-air jumping and falling poses with landing squash damping.
+  - Debug key (<kbd>K</kbd>) cleanly switches between Child Hanuman and Adult Hanuman (with broader shoulders and golden Gada mace).
+  - Verified at 60 FPS in browser with 0 console or WebGL errors.
 
 ## Next Steps
 Ready for Stage 3: Chapter 2, Growing Up.

@@ -1,347 +1,123 @@
-import * as THREE from 'three';
+// src/characters/hanumanAnim.js
+// Procedural animation for the rig returned by makeHanuman().
+//
+//   const animate = createHanumanAnimator(hanuman);
+//   // every frame:
+//   animate(dt, { speed, grounded, vy });
+//
+//   speed    : horizontal speed as a fraction of your normal run speed (0 = idle, 1 = run, ~1.5 = sprint)
+//   grounded : true when standing on something
+//   vy       : vertical velocity (positive going up)
+//
+// Covers idle (breathing, tail sway, blinking), run, jump, fall and a landing squash.
+// Rotation convention: a hanging limb swings FORWARD (+Z) with a NEGATIVE rotation.x.
 
-/**
- * High-Quality Animation System for Bala Hanuman:
- * Supports 7 core animations with smooth weighted blending:
- * 1. Idle (natural breathing, weight shift, head movement, multi-segment S-curve tail sway)
- * 2. Walking (natural alternating steps, arm swing, torso bounce, tail rhythm)
- * 3. Running (fast sprint, arm pumping, forward body inclination, trailing tail)
- * 4. Jumping (take-off, mid-air hero pose, tucked legs, upward gaze)
- * 5. Landing (deep knee flexion, forward lean, one hand approaching ground, tail recoil)
- * 6. Climbing (body hugging vertical surface, alternating arm reach and leg pulls)
- * 7. Flying (superhero pose, outstretched arms, trailing bent legs, wind fluttering tail)
- */
-export class HanumanAnimator {
-  constructor(parts, isAdult = false) {
-    this.parts = parts;
-    this.isAdult = isAdult;
+import { TAIL_REST } from './hanuman.js';
 
-    // Animation state weights (0.0 to 1.0)
-    this.weights = {
-      idle: 1.0,
-      walk: 0.0,
-      run: 0.0,
-      jump: 0.0,
-      land: 0.0,
-      climb: 0.0,
-      fly: 0.0,
-    };
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const damp = (a, b, lambda, dt) => a + (b - a) * (1 - Math.exp(-lambda * dt));
 
-    // Cycle times
-    this.walkCycle = 0.0;
-    this.runCycle = 0.0;
-    this.climbCycle = 0.0;
-    this.flyCycle = 0.0;
+export function createHanumanAnimator(rig) {
+  const { hips, spine, head, legs, arms, tail, eyes } = rig.joints;
 
-    // Manual override state for testing or cutscenes
-    this.overrideState = null;
+  const st = {
+    t: 0, phase: 0,
+    run: 0, air: 0, land: 0,
+    wasGrounded: true, lastVy: 0,
+    blinkIn: 2.5, blinkLeft: 0,
+  };
 
-    // Landing timer
-    this.landingTimer = 0.0;
-    this.wasGrounded = true;
+  return function update(dt, { speed = 0, grounded = true, vy = 0 } = {}) {
+    dt = Math.min(dt, 0.05);
+    st.t += dt;
 
-    // Base joint values
-    this.basePelvisY = parts.pelvis.position.y;
-  }
+    // smoothed state weights
+    st.run = damp(st.run, clamp(speed, 0, 1.6), 10, dt);
+    st.air = damp(st.air, grounded ? 0 : 1, 16, dt);
+    if (!st.wasGrounded && grounded) st.land = clamp(Math.abs(st.lastVy) / 12 + 0.3, 0, 1);
+    st.wasGrounded = grounded;
+    st.lastVy = vy;
+    st.land = damp(st.land, 0, 8, dt);
+    st.phase += dt * (6 + st.run * 5);
 
-  /**
-   * Sets manual animation override (e.g. 'climb', 'fly', null to resume auto physics)
-   */
-  setOverride(stateName) {
-    this.overrideState = stateName;
-  }
+    const a = st.air;                       // 0 = on ground, 1 = in air
+    const run = st.run * (1 - a);           // run weight, only on the ground
+    const w = clamp(0.5 + vy / 10, 0, 1);   // 1 = rising (jump), 0 = falling
+    const p = st.phase;
+    const s1 = Math.sin(p), c1 = Math.cos(p);
+    const breath = Math.sin(st.t * 2.2);
+    const streak = clamp(st.run, 0, 1.2) / 1.2;
 
-  update(delta, time, velocity, isGrounded, squash = 1.0) {
-    const parts = this.parts;
-    if (!parts) return;
+    // ---- legs
+    legs.forEach((leg, i) => {
+      const sgn = i === 0 ? 1 : -1;
+      const swing = s1 * sgn;
+      const flex = Math.max(0, c1 * sgn);
 
-    // Detect landing impact
-    if (!this.wasGrounded && isGrounded && velocity.y <= 0) {
-      this.landingTimer = 0.35; // 350ms landing absorption pose
+      const gThigh = -swing * 0.85 * run;
+      const gKnee = (0.12 + 0.95 * flex) * run;
+
+      const aThigh = i === 0 ? lerp(-0.35, -0.95, w) : lerp(0.2, -0.35, w);
+      const aKnee = i === 0 ? lerp(0.5, 1.3, w) : lerp(0.3, 0.6, w);
+
+      const thigh = lerp(gThigh, aThigh, a) - 0.6 * st.land;
+      const knee = lerp(gKnee, aKnee, a) + 1.2 * st.land;
+
+      leg.hip.rotation.x = thigh;
+      leg.knee.rotation.x = knee;
+      leg.ankle.rotation.x = -knee * 0.3;
+    });
+
+    // ---- arms (swing opposite to the legs on the ground)
+    arms.forEach((arm, i) => {
+      const sgn = i === 0 ? 1 : -1;
+      const swing = s1 * sgn;
+
+      const gShoulder = swing * 0.9 * run + Math.sin(st.t * 1.7 + i * 1.5) * 0.04 * (1 - run);
+      const gElbow = -(0.25 + 0.7 * run);
+      const gOut = 0.1 + breath * 0.01;
+
+      const flail = -0.7 + Math.sin(st.t * 16 + i * 2) * 0.5;
+      const aShoulder = lerp(flail, -2.5, w);
+      const aElbow = lerp(-0.6, -0.35, w);
+      const aOut = lerp(0.8, 0.35, w);
+
+      arm.shoulder.rotation.x = lerp(gShoulder, aShoulder, a);
+      arm.shoulder.rotation.z = arm.side * lerp(gOut, aOut, a);
+      arm.elbow.rotation.x = lerp(gElbow, aElbow, a);
+    });
+
+    // ---- torso, head, hips
+    spine.rotation.x = 0.22 * run + a * lerp(0.1, 0.3, w) + 0.15 * st.land;
+    spine.rotation.y = s1 * 0.2 * run;
+    spine.position.y = 0.04 + breath * 0.004;
+    head.rotation.x = -spine.rotation.x * 0.6;
+    head.rotation.y = -spine.rotation.y * 0.7 + Math.sin(st.t * 0.7) * 0.05 * (1 - run);
+    hips.position.y = 0.5 + Math.abs(c1) * 0.045 * run - 0.09 * st.land;
+    hips.rotation.z = s1 * 0.04 * run;
+
+    // ---- tail: streams out when running, lifts when jumping, always swaying a little
+    const base = TAIL_REST.base - 0.15 * streak + a * (0.3 * w - 0.1);
+    const curl = TAIL_REST.curl - 0.1 * streak;
+    tail.forEach((seg, i) => {
+      const wave = Math.sin(st.t * 2.4 - i * 0.55) * (0.04 + 0.07 * streak);
+      seg.rotation.x = (i === 0 ? base : curl) + wave;
+      seg.rotation.z = Math.sin(st.t * 1.9 - i * 0.7) * (0.05 + 0.1 * streak);
+    });
+
+    // ---- blink
+    st.blinkIn -= dt;
+    if (st.blinkIn <= 0) {
+      st.blinkLeft = 0.12;
+      st.blinkIn = 2 + Math.random() * 3.5;
     }
-    this.wasGrounded = isGrounded;
-    if (this.landingTimer > 0) {
-      this.landingTimer -= delta;
-    }
+    if (st.blinkLeft > 0) st.blinkLeft -= dt;
+    const eyeY = st.blinkLeft > 0 ? 0.12 : 1;
+    eyes.forEach((e) => { e.scale.y = eyeY; });
 
-    const vx = velocity.x;
-    const vy = velocity.y;
-    const vz = velocity.z;
-    const horizontalSpeed = Math.sqrt(vx * vx + vz * vz);
-
-    // Determine target weights based on physics & state
-    let target = {
-      idle: 0.0,
-      walk: 0.0,
-      run: 0.0,
-      jump: 0.0,
-      land: 0.0,
-      climb: 0.0,
-      fly: 0.0,
-    };
-
-    if (this.overrideState) {
-      target[this.overrideState] = 1.0;
-    } else if (this.landingTimer > 0 && isGrounded) {
-      target.land = Math.min(1.0, this.landingTimer / 0.35);
-    } else if (!isGrounded) {
-      if (vy > 6.0) {
-        // High speed leap / flying towards the sun
-        target.fly = Math.min(1.0, (vy - 6.0) / 6.0);
-        target.jump = 1.0 - target.fly;
-      } else {
-        target.jump = 1.0;
-      }
-    } else if (horizontalSpeed > 5.5) {
-      target.run = 1.0;
-    } else if (horizontalSpeed > 0.4) {
-      target.walk = Math.min(1.0, horizontalSpeed / 4.0);
-      target.idle = 1.0 - target.walk;
-    } else {
-      target.idle = 1.0;
-    }
-
-    // Smoothly blend weights
-    const blendSpeed = 10.0 * delta;
-    for (const key of Object.keys(this.weights)) {
-      this.weights[key] = THREE.MathUtils.lerp(this.weights[key], target[key], blendSpeed);
-    }
-
-    // Accumulate movement cycles
-    this.walkCycle += delta * 7.5;
-    this.runCycle += delta * (11.5 + Math.min(1.5, horizontalSpeed / 6.0) * 3.5);
-    this.climbCycle += delta * 6.0;
-    this.flyCycle += delta * 8.0;
-
-    // Reset joint rotations
-    parts.torso.rotation.set(0, 0, 0);
-    parts.torso.scale.set(1, 1, 1);
-    parts.head.rotation.set(0, 0, 0);
-    parts.leftShoulder.rotation.set(0, 0, 0);
-    parts.leftForearm.rotation.set(-0.15, 0, 0);
-    parts.rightShoulder.rotation.set(0, 0, 0);
-    parts.rightForearm.rotation.set(-0.15, 0, 0);
-    parts.leftHip.rotation.set(0, 0, 0);
-    parts.leftKnee.rotation.set(0, 0, 0);
-    parts.rightHip.rotation.set(0, 0, 0);
-    parts.rightKnee.rotation.set(0, 0, 0);
-
-    let pelvisYOffset = 0;
-
-    // ==========================================
-    // 1. IDLE ANIMATION
-    // ==========================================
-    const wIdle = this.weights.idle;
-    if (wIdle > 0.001) {
-      const breath = Math.sin(time * 2.4) * 0.035;
-      const weightShift = Math.sin(time * 1.2) * 0.02;
-      const headNod = Math.sin(time * 1.6) * 0.03;
-
-      parts.torso.scale.set(
-        1.0 + breath * 0.6 * wIdle,
-        1.0 + breath * wIdle,
-        1.0 + breath * 0.7 * wIdle
-      );
-      parts.head.rotation.x += headNod * wIdle;
-      parts.head.rotation.z += weightShift * 0.5 * wIdle;
-
-      // Relaxed arms at sides
-      parts.leftShoulder.rotation.z += (0.10 + breath * 0.05) * wIdle;
-      parts.rightShoulder.rotation.z -= (0.10 + breath * 0.05) * wIdle;
-
-      pelvisYOffset += breath * 0.02 * wIdle;
-
-      // Natural S-curve tail sway
-      parts.tailBase.rotation.x += (0.50 + Math.sin(time * 2.0) * 0.08) * wIdle;
-      parts.tailBase.rotation.z += Math.sin(time * 1.6) * 0.12 * wIdle;
-
-      parts.tailSegments.forEach((seg, i) => {
-        const segPhase = time * 2.5 + i * 0.7;
-        seg.rotation.x += (0.16 + Math.cos(segPhase) * 0.07) * wIdle;
-        seg.rotation.z += Math.sin(segPhase) * 0.12 * wIdle;
-      });
-    }
-
-    // ==========================================
-    // 2. WALKING ANIMATION
-    // ==========================================
-    const wWalk = this.weights.walk;
-    if (wWalk > 0.001) {
-      const phi = this.walkCycle;
-
-      // Legs
-      parts.leftHip.rotation.x += Math.sin(phi) * 0.55 * wWalk;
-      parts.rightHip.rotation.x -= Math.sin(phi) * 0.55 * wWalk;
-      parts.leftKnee.rotation.x += Math.max(0, -Math.sin(phi)) * 0.65 * wWalk;
-      parts.rightKnee.rotation.x += Math.max(0, Math.sin(phi)) * 0.65 * wWalk;
-
-      // Arms (counter-swing)
-      parts.leftShoulder.rotation.x -= Math.sin(phi) * 0.50 * wWalk;
-      parts.rightShoulder.rotation.x += Math.sin(phi) * 0.50 * wWalk;
-      parts.leftForearm.rotation.x -= Math.max(0, -Math.sin(phi)) * 0.4 * wWalk;
-      parts.rightForearm.rotation.x -= Math.max(0, Math.sin(phi)) * 0.4 * wWalk;
-
-      // Torso & Tail
-      parts.torso.rotation.x += 0.08 * wWalk;
-      parts.torso.rotation.y += Math.sin(phi) * 0.05 * wWalk;
-      pelvisYOffset += Math.abs(Math.sin(phi * 2.0)) * 0.025 * wWalk;
-
-      parts.tailBase.rotation.x += (0.65 + Math.sin(phi * 2.0) * 0.10) * wWalk;
-      parts.tailBase.rotation.z += Math.sin(phi) * 0.15 * wWalk;
-      parts.tailSegments.forEach((seg, i) => {
-        seg.rotation.x += (0.18 + Math.cos(phi + i * 0.6) * 0.06) * wWalk;
-        seg.rotation.z += Math.sin(phi + i * 0.6) * 0.10 * wWalk;
-      });
-    }
-
-    // ==========================================
-    // 3. RUNNING ANIMATION
-    // ==========================================
-    const wRun = this.weights.run;
-    if (wRun > 0.001) {
-      const phi = this.runCycle;
-
-      // Powerful leg drives
-      parts.leftHip.rotation.x += Math.sin(phi) * 0.85 * wRun;
-      parts.rightHip.rotation.x -= Math.sin(phi) * 0.85 * wRun;
-      parts.leftKnee.rotation.x += Math.max(0, -Math.sin(phi)) * 1.15 * wRun;
-      parts.rightKnee.rotation.x += Math.max(0, Math.sin(phi)) * 1.15 * wRun;
-
-      // Aggressive arm pumping
-      parts.leftShoulder.rotation.x -= Math.sin(phi) * 0.85 * wRun;
-      parts.rightShoulder.rotation.x += Math.sin(phi) * 0.85 * wRun;
-      parts.leftForearm.rotation.x -= (0.25 + Math.max(0, -Math.sin(phi)) * 0.75) * wRun;
-      parts.rightForearm.rotation.x -= (0.25 + Math.max(0, Math.sin(phi)) * 0.75) * wRun;
-
-      // Forward athletic body inclination
-      parts.torso.rotation.x += 0.24 * wRun;
-      parts.torso.rotation.y += Math.sin(phi) * 0.08 * wRun;
-      pelvisYOffset += Math.abs(Math.sin(phi * 2.0)) * 0.045 * wRun;
-
-      // Wind-trailing tail
-      parts.tailBase.rotation.x += (0.95 + Math.sin(phi * 2.0) * 0.14) * wRun;
-      parts.tailBase.rotation.z += Math.sin(phi) * 0.20 * wRun;
-      parts.tailSegments.forEach((seg, i) => {
-        seg.rotation.x += (0.24 + Math.cos(phi + i * 0.7) * 0.08) * wRun;
-        seg.rotation.z += Math.sin(phi + i * 0.7) * 0.12 * wRun;
-      });
-    }
-
-    // ==========================================
-    // 4. JUMPING ANIMATION
-    // ==========================================
-    const wJump = this.weights.jump;
-    if (wJump > 0.001) {
-      // Arms raised high in joyous leap
-      parts.leftShoulder.rotation.x -= 2.25 * wJump;
-      parts.leftShoulder.rotation.z += 0.40 * wJump;
-      parts.rightShoulder.rotation.x -= 2.25 * wJump;
-      parts.rightShoulder.rotation.z -= 0.40 * wJump;
-      parts.leftForearm.rotation.x -= 0.45 * wJump;
-      parts.rightForearm.rotation.x -= 0.45 * wJump;
-
-      // Legs tucked up
-      parts.leftHip.rotation.x += 0.45 * wJump;
-      parts.leftKnee.rotation.x += 0.80 * wJump;
-      parts.rightHip.rotation.x += 0.30 * wJump;
-      parts.rightKnee.rotation.x += 0.65 * wJump;
-
-      // Head looking up toward the sun
-      parts.head.rotation.x -= 0.38 * wJump;
-
-      // Upward tail arch
-      parts.tailBase.rotation.x += 1.05 * wJump;
-      parts.tailSegments.forEach((seg) => {
-        seg.rotation.x += 0.26 * wJump;
-      });
-    }
-
-    // ==========================================
-    // 5. LANDING ANIMATION (Vanara 3-Point Crouch)
-    // ==========================================
-    const wLand = this.weights.land;
-    if (wLand > 0.001) {
-      // Deep knee absorption
-      parts.leftHip.rotation.x += 0.75 * wLand;
-      parts.leftKnee.rotation.x += 1.35 * wLand;
-      parts.rightHip.rotation.x += 0.65 * wLand;
-      parts.rightKnee.rotation.x += 1.25 * wLand;
-
-      // Forward chest tilt
-      parts.torso.rotation.x += 0.45 * wLand;
-      pelvisYOffset -= 0.18 * wLand;
-
-      // One hand reaching toward ground for stability
-      parts.rightShoulder.rotation.x += 0.45 * wLand;
-      parts.rightShoulder.rotation.z -= 0.25 * wLand;
-      parts.rightForearm.rotation.x -= 0.85 * wLand;
-
-      parts.leftShoulder.rotation.x -= 0.35 * wLand;
-      parts.leftShoulder.rotation.z += 0.50 * wLand;
-
-      // Tail recoil
-      parts.tailBase.rotation.x += 1.15 * wLand;
-    }
-
-    // ==========================================
-    // 6. CLIMBING ANIMATION
-    // ==========================================
-    const wClimb = this.weights.climb;
-    if (wClimb > 0.001) {
-      const phi = this.climbCycle;
-
-      // Body pressed close to vertical surface
-      parts.torso.rotation.x -= 0.35 * wClimb;
-
-      // Alternating arm reaches
-      parts.leftShoulder.rotation.x -= (2.4 + Math.sin(phi) * 0.4) * wClimb;
-      parts.leftShoulder.rotation.z += 0.25 * wClimb;
-      parts.rightShoulder.rotation.x -= (2.4 - Math.sin(phi) * 0.4) * wClimb;
-      parts.rightShoulder.rotation.z -= 0.25 * wClimb;
-
-      // Alternating knee grips
-      parts.leftHip.rotation.x += (0.65 + Math.sin(phi) * 0.35) * wClimb;
-      parts.leftKnee.rotation.x += (1.1 + Math.sin(phi) * 0.3) * wClimb;
-      parts.rightHip.rotation.x += (0.65 - Math.sin(phi) * 0.35) * wClimb;
-      parts.rightKnee.rotation.x += (1.1 - Math.sin(phi) * 0.3) * wClimb;
-
-      // Tail curled down/out for balance
-      parts.tailBase.rotation.x -= 0.25 * wClimb;
-    }
-
-    // ==========================================
-    // 7. FLYING ANIMATION (Superhero Glide)
-    // ==========================================
-    const wFly = this.weights.fly;
-    if (wFly > 0.001) {
-      const phi = this.flyCycle;
-
-      // Body inclined forward into flight direction
-      parts.torso.rotation.x += 0.75 * wFly;
-      parts.head.rotation.x -= 0.70 * wFly; // Head looks straight ahead
-
-      // Arms outstretched forward and slightly spread
-      parts.leftShoulder.rotation.x -= (2.7 + Math.sin(phi) * 0.08) * wFly;
-      parts.leftShoulder.rotation.z += 0.35 * wFly;
-      parts.rightShoulder.rotation.x -= (2.7 - Math.sin(phi) * 0.08) * wFly;
-      parts.rightShoulder.rotation.z -= 0.35 * wFly;
-
-      // Legs trailing behind
-      parts.leftHip.rotation.x -= 0.35 * wFly;
-      parts.leftKnee.rotation.x += 0.40 * wFly;
-      parts.rightHip.rotation.x -= 0.25 * wFly;
-      parts.rightKnee.rotation.x += 0.45 * wFly;
-
-      // Tail & sash streaming back with fluttering wave
-      parts.tailBase.rotation.x += 1.45 * wFly;
-      parts.tailBase.rotation.z += Math.sin(phi * 2.0) * 0.18 * wFly;
-      parts.tailSegments.forEach((seg, i) => {
-        seg.rotation.x += 0.22 * wFly;
-        seg.rotation.z += Math.sin(phi * 2.0 + i * 0.8) * 0.15 * wFly;
-      });
-    }
-
-    // Apply net pelvis offset
-    parts.pelvis.position.y = this.basePelvisY + pelvisYOffset;
-  }
+    // ---- landing squash on the whole character
+    const s = rig.baseScale;
+    rig.root.scale.set(s * (1 + 0.12 * st.land), s * (1 - 0.15 * st.land), s * (1 + 0.12 * st.land));
+  };
 }

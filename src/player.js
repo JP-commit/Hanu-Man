@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { makeHanuman } from './characters/hanuman.js';
-import { HanumanAnimator } from './characters/hanumanAnim.js';
+import { createHanumanAnimator } from './characters/hanumanAnim.js';
 
 /**
  * Hanuman Player Character:
- * - Expressive vanara character model built from primitives (makeHanuman)
- * - Supports Child Hanuman (default) and Adult Hanuman preview (toggled with Key K)
- * - Procedural skeletal animations (idle breathing & tail wave, running, jumping, falling, landing squash)
- * - Physics & collisions unchanged: AABB collision, variable jump, coyote time, jump buffering
+ * - Powered by reference/hanuman.js and reference/hanumanAnim.js
+ * - Child Hanuman (default) and Adult Hanuman preview (toggled with Key K)
+ * - Procedural locomotion, tail physics, blinking, jumping, and landing squash
+ * - Preserves physics colliders, camera interaction, and game-state systems
  */
 export class Player {
   constructor(scene, sunDirection) {
@@ -40,7 +40,6 @@ export class Player {
 
     this.isCinematic = false;
     this.squash = 1.0;
-    this.animTime = 0.0;
 
     // Character model variation (Child vs Adult preview)
     this.isAdult = false;
@@ -51,11 +50,7 @@ export class Player {
     this.scene.add(this.mesh);
 
     this.charModelGroup = null;
-    this.expressions = ['happy', 'determined', 'angry', 'surprised', 'focused'];
-    this.expressionIndex = 0;
-
-    this.animPreviews = [null, 'climb', 'fly', 'land', 'idle', 'walk', 'run', 'jump'];
-    this.animPreviewIndex = 0;
+    this.animateCharacter = null;
 
     this._buildCharacterModel();
     this._attachDebugKeys();
@@ -66,62 +61,31 @@ export class Player {
       this.mesh.remove(this.charModelGroup);
     }
 
+    const variant = this.isAdult ? 'adult' : 'child';
     const hanuman = makeHanuman({
-      isAdult: this.isAdult,
-      sunDirection: this.sunDirection,
+      variant,
+      scale: 1.0,
     });
 
     this.characterData = hanuman;
-    this.animator = new HanumanAnimator(hanuman.parts, this.isAdult);
-    this.charModelGroup = hanuman.group;
+    this.animateCharacter = createHanumanAnimator(hanuman);
+    this.charModelGroup = hanuman.root;
 
     this.mesh.add(this.charModelGroup);
-
-    // Reapply active expression
-    hanuman.setExpression(this.expressions[this.expressionIndex]);
   }
 
   /**
-   * Switches between Child Hanuman and Adult Hanuman
+   * Switches between Child Hanuman and Adult Hanuman (with Gada)
    */
   toggleCharacterModel() {
     this.isAdult = !this.isAdult;
     this._buildCharacterModel();
   }
 
-  /**
-   * Programmatic expression setter (happy, determined, angry, surprised, focused)
-   */
-  setExpression(name) {
-    if (this.characterData) {
-      this.characterData.setExpression(name);
-      const idx = this.expressions.indexOf(name);
-      if (idx !== -1) this.expressionIndex = idx;
-    }
-  }
-
-  cycleExpression() {
-    this.expressionIndex = (this.expressionIndex + 1) % this.expressions.length;
-    const name = this.expressions[this.expressionIndex];
-    this.setExpression(name);
-  }
-
-  cycleAnimPreview() {
-    this.animPreviewIndex = (this.animPreviewIndex + 1) % this.animPreviews.length;
-    const stateName = this.animPreviews[this.animPreviewIndex];
-    if (this.animator) {
-      this.animator.setOverride(stateName);
-    }
-  }
-
   _attachDebugKeys() {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyK') {
         this.toggleCharacterModel();
-      } else if (e.code === 'KeyE') {
-        this.cycleExpression();
-      } else if (e.code === 'KeyP') {
-        this.cycleAnimPreview();
       }
     });
   }
@@ -140,16 +104,18 @@ export class Player {
   }
 
   update(delta, input, cameraController, colliders = []) {
-    this.animTime += delta;
-
     // In cutscenes, manual controls are suspended
     if (this.isCinematic) {
       this.position.x += this.velocity.x * delta;
       this.position.y += this.velocity.y * delta;
       this.position.z += this.velocity.z * delta;
 
-      if (this.animator) {
-        this.animator.update(delta, this.animTime, this.velocity, this.isGrounded, this.squash);
+      if (this.animateCharacter) {
+        this.animateCharacter(delta, {
+          speed: 0,
+          grounded: this.isGrounded,
+          vy: this.velocity.y,
+        });
       }
       return;
     }
@@ -199,7 +165,6 @@ export class Player {
       this.isGrounded = false;
       this.coyoteTimer = 0.0;
       this.jumpBufferTimer = 0.0;
-      this.squash = 1.35;
     }
 
     // Variable jump height
@@ -235,12 +200,16 @@ export class Player {
       this.mesh.rotation.y = this.facingAngle;
     }
 
-    // 5. Landing Squash Recovery
-    this.squash = THREE.MathUtils.lerp(this.squash, 1.0, 1.0 - Math.exp(-12.0 * delta));
+    // 5. Procedural Animation Update (from reference/hanumanAnim.js)
+    if (this.animateCharacter) {
+      const horizontalSpeed = Math.sqrt(horizontalSpeedSq);
+      const speedFraction = horizontalSpeed / this.walkSpeed;
 
-    // 6. Procedural Skeleton Animation Update
-    if (this.animator) {
-      this.animator.update(delta, this.animTime, this.velocity, this.isGrounded, this.squash);
+      this.animateCharacter(delta, {
+        speed: speedFraction,
+        grounded: this.isGrounded,
+        vy: this.velocity.y,
+      });
     }
   }
 
@@ -279,7 +248,7 @@ export class Player {
           } else if (this.velocity.z < 0) {
             this.position.z = box.max.z + r;
           }
-          this.velocity.z = 0;
+          this.velocity.x = 0;
         }
       }
     }
@@ -291,9 +260,6 @@ export class Player {
 
     if (this.position.y <= 0) {
       this.position.y = 0;
-      if (this.velocity.y < -4.0) {
-        this.squash = 0.72; // Squash on landing
-      }
       this.velocity.y = 0;
       groundedThisFrame = true;
     }
@@ -307,9 +273,6 @@ export class Player {
       if (this.velocity.y <= 0 && this.position.y <= box.max.y) {
         if (prevY >= box.max.y - 0.3) {
           this.position.y = box.max.y;
-          if (this.velocity.y < -4.0) {
-            this.squash = 0.72;
-          }
           this.velocity.y = 0;
           groundedThisFrame = true;
         }
